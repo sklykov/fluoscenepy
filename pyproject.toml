@@ -1,0 +1,41 @@
+[project]
+name = "fluoscenepy - ?"
+version = "0.0.1"
+authors = [
+    {name = "Sergei Klykov"},
+    {email = "sergej.klykow@gmail.com"}
+]
+description = "Simulation of microscopic image with fluorescent objects"
+readme = "README.md"
+# license = {file = "LICENSE"}  # includes the whole text in METADATA, maybe not so convienient
+license = {text = "MIT"}  # short descriptive name of the used license
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy",
+    "matplotlib",
+	"scikit-image",
+]
+keywords = ["fluorescent objects"]
+
+[project.urls]  # METADATA in wheel file will represent the data below by using pip show zernpy -v
+# But the the links themselves are mapped / parced by the PyPi website
+"Homepage" = "https://pypi.org/project/.../"
+"Repository" = "https://github.com/sklykov/fluoscenepy/"
+"Bug Tracker" = "https://github.com/sklykov/fluoscenepy/issues/"
+"Documentation" = "https://sklykov.github.io/fluoscenepy/docs/.../"
+"Changelog" = "https://github.com/sklykov/fluoscenepy/blob/main/CHANGELOG.md"
+
+# [tool.setuptools]
+# include-package-data = true  # true by default
+
+# [tool.setuptools.packages.find]  # Manifest.in file is only required for adding some package-data
+# where = ["src"]  # there is no need to specify this here
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
