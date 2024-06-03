@@ -4,7 +4,9 @@ Main script for the 'fluoscenepy' package.
 
 @author: Sergei Klykov
 @licence: MIT, @year: 2024
+
 """
+
 # %% Global imports
 import numpy as np
 import matplotlib.pyplot as plt
