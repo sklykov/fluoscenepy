@@ -272,27 +272,47 @@ def bump_f(x: np.ndarray, b: float = 1.0, power: int = 2) -> np.ndarray:
     return y
 
 
+# %% 2D shapes based on continuous functions
+def gaussian_bead(r: float, center_shifts: tuple) -> np.ndarray:
+    sigma = np.sqrt(r); max_size = int(round(6.0*sigma, 0)); y_shift, x_shift = center_shifts
+    if max_size % 2 == 0:
+        max_size += 1
+    img = np.zeros(dtype=np.float32, shape=(max_size, max_size))  # crating by default float image, normalized to 1.0 as the max intensity
+    i_img_center = max_size // 2; j_img_center = max_size // 2
+    i_center = i_img_center + y_shift; j_center = j_img_center + x_shift
+    # Calculating the intensity distribution pixelwise
+    for i in range(max_size):
+        for j in range(max_size):
+            distance = distance_f(i, j, i_center, j_center)
+            img[i, j] = np.exp(-np.power(distance, 2)/np.power(sigma, 2))
+    return img
+
+
+# %% Default exports from this module
+__all__ = ['gaussian_bead']
+
 # %% Tests
-test_disk_show = True; figsizes = (6.5, 6.5)
-# Testing disk representation
-if test_disk_show:
-    i_shift = 0.23; j_shift = -0.591; disk_r = 6.0
-    disk1 = make_sample(radius=disk_r, center_shift=(i_shift, j_shift), test_plots=False)
-    plt.figure(figsize=figsizes); axes_img = plt.imshow(disk1, cmap=plt.cm.viridis); plt.tight_layout()
-    m_center, n_center = disk1.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
-    axes_img.axes.add_patch(Circle((n_center, m_center), disk_r, edgecolor='red', facecolor='none'))
-    r = np.arange(start=0.0, stop=1.3, step=0.02)
-    profile1_f = profile1(r, 1.0)  # normal gaussian
-    profile2_f = profile2(r)  # discontinuous function
-    profile3_f = profile3(r, 1.0)  # lorentzian
-    profile4_f = profile4(r); max_4 = np.max(profile4_f); profile4_f /= max_4  # derivative of logistic function
-    profile5_f = profile5(r, 1.4)  # bump function
-    profile6_f = profile6(r, 1.4)  # modified bump function
-    # plt.figure("Profiles Comparison"); plt.plot(r, profile1_f, r, profile2_f, r, profile3_f, r, profile4_f, r, profile5_f, r, profile6_f)
-    # plt.legend(['gaussian', 'discontinuous', 'lorentzian', 'd(logist.f)/dr', 'bump', 'mod. bump'])
-    # Comparison of bump functions depending on the power of arguments
-    size = 1.5; step_r = 0.01; r1 = np.arange(start=0.0, stop=size+step_r, step=step_r)
-    bump2 = bump_f(r1, size, 2); bump4 = bump_f(r1, size, 4); bump3 = bump_f(r1, size, 3); bump64 = bump_f(r1, size, 64)
-    bump8 = bump_f(r1, size, 8); bump16 = bump_f(r1, size, 16); bump32 = bump_f(r1, size, 32)
-    # plt.figure("Bump() Comparison"); plt.plot(r1, bump2, r1, bump3, r1, bump4, r1, bump8, r1, bump16)
-    # plt.legend(['^2', '^3', '^4', '^8', '^16']); plt.axvline(x=0.5); plt.axvline(x=1.0)
+if __name__ == "__main__":
+    test_disk_show = True; figsizes = (6.5, 6.5)
+    # Testing disk representation
+    if test_disk_show:
+        i_shift = 0.23; j_shift = -0.591; disk_r = 6.0
+        disk1 = make_sample(radius=disk_r, center_shift=(i_shift, j_shift), test_plots=False)
+        plt.figure(figsize=figsizes); axes_img = plt.imshow(disk1, cmap=plt.cm.viridis); plt.tight_layout()
+        m_center, n_center = disk1.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
+        axes_img.axes.add_patch(Circle((n_center, m_center), disk_r, edgecolor='red', facecolor='none'))
+        r = np.arange(start=0.0, stop=1.3, step=0.02)
+        profile1_f = profile1(r, 1.0)  # normal gaussian
+        profile2_f = profile2(r)  # discontinuous function
+        profile3_f = profile3(r, 1.0)  # lorentzian
+        profile4_f = profile4(r); max_4 = np.max(profile4_f); profile4_f /= max_4  # derivative of logistic function
+        profile5_f = profile5(r, 1.4)  # bump function
+        profile6_f = profile6(r, 1.4)  # modified bump function
+        # plt.figure("Profiles Comparison"); plt.plot(r, profile1_f, r, profile2_f, r, profile3_f, r, profile4_f, r, profile5_f, r, profile6_f)
+        # plt.legend(['gaussian', 'discontinuous', 'lorentzian', 'd(logist.f)/dr', 'bump', 'mod. bump'])
+        # Comparison of bump functions depending on the power of arguments
+        size = 1.5; step_r = 0.01; r1 = np.arange(start=0.0, stop=size+step_r, step=step_r)
+        bump2 = bump_f(r1, size, 2); bump4 = bump_f(r1, size, 4); bump3 = bump_f(r1, size, 3); bump64 = bump_f(r1, size, 64)
+        bump8 = bump_f(r1, size, 8); bump16 = bump_f(r1, size, 16); bump32 = bump_f(r1, size, 32)
+        # plt.figure("Bump() Comparison"); plt.plot(r1, bump2, r1, bump3, r1, bump4, r1, bump8, r1, bump16)
+        # plt.legend(['^2', '^3', '^4', '^8', '^16']); plt.axvline(x=0.5); plt.axvline(x=1.0)

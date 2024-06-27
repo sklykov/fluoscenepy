@@ -13,8 +13,13 @@ import matplotlib.pyplot as plt
 import warnings
 from typing import Union
 import random
+from pathlib import Path
 
-# %% Local imports
+# %% Local (package-scoped) imports
+if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
+    from utils.raw_objects_gen import gaussian_bead
+else:
+    from .utils.raw_objects_gen import gaussian_bead
 
 
 # %% Scene (image) class def.
@@ -114,7 +119,7 @@ class UscopeScene():
 
 
 # %% Object class definition
-class FluoObj():
+class FluorObj():
     """
     Modelling the fluorescent bright object with the specified type.
 
@@ -123,15 +128,70 @@ class FluoObj():
     """
 
     # Class parameters
-    shape_type: str; border_type: str; __acceptable_shape_types: list = ['round', 'r', 'elongated', 'curved']
+    shape_type: str = ""; border_type: str = ""; shape_method: str = ""
+    __acceptable_shape_types: list = ['round', 'r', 'elongated', 'el', 'curved', 'c']  # shape types of the object
+    __acceptable_border_types: list = ['precise', 'pr', 'computed', 'co']; radius: float = 1.0; a: float = 0.0; b: float = 0.0
+    typical_sizes: tuple = ()  # for storing descriptive parameters for curve describing the shape of the object
+    # below - storing names of implemented computing functions for the define continuous shape
+    __acceptable_shape_methods = ['gaussian', 'g']; profile: np.ndarray = None
 
-    def __init__(self, shape_type: str = 'round', border_type: str = 'precise'):
+    def __init__(self, typical_size: Union[float, int, tuple], center_shifts: tuple = (0.0, 0.0), shape_type: str = 'round',
+                 border_type: str = 'precise', shape_method: str = ''):
+        # Sanity checks of the input values
         if shape_type in self.__acceptable_shape_types:
             self.shape_type = shape_type
         else:
-            raise ValueError(f"Provided shape type {shape_type} not in acceptable list {self.__acceptable_shape_types}")
+            raise ValueError(f"Provided shape type '{shape_type}' not in acceptable list {self.__acceptable_shape_types}")
+        if border_type in self.__acceptable_border_types:
+            self.border_type = border_type
+        else:
+            raise ValueError(f"Provided border type '{border_type}' not in acceptable list {self.__acceptable_border_types}")
+        if self.shape_type == "round" or self.shape_type == "r":
+            if isinstance(typical_size, float):
+                if typical_size < 0.5:
+                    raise ValueError(f"Expected typical size (radius) should be larger than 0.5px, provided: {typical_size}")
+                else:
+                    self.radius = typical_size
+            elif isinstance(typical_size, int):
+                typical_size = float(typical_size)
+                if typical_size < 0.5:
+                    raise ValueError(f"Expected typical size (radius) should be larger than 0.5px, provided: {typical_size}")
+                else:
+                    self.radius = typical_size
+            else:
+                raise ValueError(f"For round particle expected type of typical size is float or int, not {type(typical_size)}")
+        else:
+            if self.shape_type == "elongated" or self.shape_type == "el":
+                if len(typical_size) != 2:
+                    raise ValueError("For elongated particle expected length of typical size tuple is equal 2")
+                else:
+                    a, b = typical_size; max_size = max(a, b); min_size = min(a, b)
+                    if max_size < 0.5 or min_size < 0.0:
+                        raise ValueError("Expected sizes a, b should be positive and more than 0.5px")
+            else:
+                if len(typical_size) <= 2:
+                    raise ValueError("For curved particle expected length of typical size tuple is more than 2")
+                else:
+                    self.typical_sizes = typical_size
+        if self.border_type == "computed" or self.border_type == "co":
+            if shape_method in self.__acceptable_shape_methods:
+                self.shape_method = shape_method
+            else:
+                raise ValueError(f"Provided shape computation method '{shape_method}' not in acceptable list {self.__acceptable_shape_methods}")
+        self.center_shifts = center_shifts  # TODO: add sanity checks
+
+    def get_shape(self):
+        if (self.shape_type == "round" or self.shape_type == "r") and (self.shape_method == "gaussian" or self.shape_method == "g"):
+            self.profile = gaussian_bead(self.radius, self.center_shifts)
+
+    def plot_shape(self):
+        if not plt.isinteractive():
+            plt.ion()
+        plt.figure(); plt.imshow(self.profile, cmap=plt.cm.viridis, origin='upper'); plt.axis('off'); plt.colorbar(); plt.tight_layout()
 
 
 # %% Some tests
 if __name__ == "__main__":
-    scene = UscopeScene(width=145, height=123); scene.show_scene()
+    # scene = UscopeScene(width=145, height=123); scene.show_scene()
+    gb1 = FluorObj(typical_size=2.0, border_type='co', shape_method='g')
+    gb1.get_shape(); gb1.plot_shape()
