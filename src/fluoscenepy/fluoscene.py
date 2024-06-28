@@ -14,12 +14,13 @@ import warnings
 from typing import Union
 import random
 from pathlib import Path
+from matplotlib.patches import Circle
 
 # %% Local (package-scoped) imports
 if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
-    from utils.raw_objects_gen import gaussian_bead
+    from utils.raw_objects_gen import continuous_shaped_bead
 else:
-    from .utils.raw_objects_gen import gaussian_bead
+    from .utils.raw_objects_gen import continuous_shaped_bead
 
 
 # %% Scene (image) class def.
@@ -90,7 +91,7 @@ class UscopeScene():
         Parameters
         ----------
         str_id : str, optional
-            Unique string id for plotting several plots. The default is "".
+            Unique string id for plotting several plots with unique Figure() names. The default is "".
 
         Returns
         -------
@@ -128,12 +129,12 @@ class FluorObj():
     """
 
     # Class parameters
-    shape_type: str = ""; border_type: str = ""; shape_method: str = ""
+    shape_type: str = ""; border_type: str = ""; shape_method: str = ""; explicit_shape_name: str = ""; profile: np.ndarray = None
     __acceptable_shape_types: list = ['round', 'r', 'elongated', 'el', 'curved', 'c']  # shape types of the object
-    __acceptable_border_types: list = ['precise', 'pr', 'computed', 'co']; radius: float = 1.0; a: float = 0.0; b: float = 0.0
+    __acceptable_border_types: list = ['precise', 'pr', 'computed', 'co']; radius: float = 0.0; a: float = 0.0; b: float = 0.0
     typical_sizes: tuple = ()  # for storing descriptive parameters for curve describing the shape of the object
     # below - storing names of implemented computing functions for the define continuous shape
-    __acceptable_shape_methods = ['gaussian', 'g']; profile: np.ndarray = None
+    __acceptable_shape_methods = ['gaussian', 'g', 'lorentzian', 'lor', 'derivative of logistic func.', 'dlogf', 'bump square', 'bump2']
 
     def __init__(self, typical_size: Union[float, int, tuple], center_shifts: tuple = (0.0, 0.0), shape_type: str = 'round',
                  border_type: str = 'precise', shape_method: str = ''):
@@ -176,22 +177,60 @@ class FluorObj():
         if self.border_type == "computed" or self.border_type == "co":
             if shape_method in self.__acceptable_shape_methods:
                 self.shape_method = shape_method
+                if self.shape_method == 'g':
+                    self.explicit_shape_name = 'gaussian'
+                elif self.shape_method == 'lor':
+                    self.explicit_shape_name = 'lorentzian'
+                elif self.shape_method == 'dlogf':
+                    self.explicit_shape_name = 'derivative of logistic func.'
+                elif self.shape_method == 'bump2':
+                    self.explicit_shape_name = 'bump square'
             else:
                 raise ValueError(f"Provided shape computation method '{shape_method}' not in acceptable list {self.__acceptable_shape_methods}")
-        self.center_shifts = center_shifts  # TODO: add sanity checks
+        # Assuming that center shifts provided as the tuple with x shift, y shift floats in pixels
+        if len(center_shifts) == 2:
+            x_shift, y_shift = center_shifts
+            if abs(x_shift) < 1.0 and abs(y_shift) < 1.0:
+                self.center_shifts = center_shifts
+            else:
+                raise ValueError(f"One of the shifts '{center_shifts}' in pixels are more than 1px, "
+                                 + "but the shifts are expected to be in the subpixel range")
 
     def get_shape(self):
-        if (self.shape_type == "round" or self.shape_type == "r") and (self.shape_method == "gaussian" or self.shape_method == "g"):
-            self.profile = gaussian_bead(self.radius, self.center_shifts)
+        if (self.shape_type == "round" or self.shape_type == "r") and (self.border_type == "computed" or self.border_type == "co"):
+            self.profile = continuous_shaped_bead(self.radius, self.center_shifts, bead_type=self.shape_method)
 
-    def plot_shape(self):
+    def plot_shape(self, str_id: str = ""):
+        """
+        Plot interactively the profile of the object computed by get_shape() method along with the border of the object (for round objects).
+
+        Parameters
+        ----------
+        str_id : str, optional
+            Unique string id for plotting several plots with unique Figure() names. The default is "".
+
+        Returns
+        -------
+        None.
+
+        """
         if not plt.isinteractive():
             plt.ion()
-        plt.figure(); plt.imshow(self.profile, cmap=plt.cm.viridis, origin='upper'); plt.axis('off'); plt.colorbar(); plt.tight_layout()
+        if self.profile is not None:
+            plt.figure(f"Shape with parameters: {self.shape_type}, {self.border_type}, {self.explicit_shape_name}, {str_id}")
+            axes_img = plt.imshow(self.profile, cmap=plt.cm.viridis, origin='upper'); plt.axis('off'); plt.colorbar()
+            plt.tight_layout()
+            if self.shape_type == "round" or self.shape_type == "r":
+                m_center, n_center = self.profile.shape; m_center = m_center // 2 + self.center_shifts[1]
+                n_center = n_center // 2 + self.center_shifts[0]
+                axes_img.axes.add_patch(Circle((n_center, m_center), self.radius, edgecolor='red', linewidth=1.5, facecolor='none'))
 
 
 # %% Some tests
 if __name__ == "__main__":
+    plt.close("all")
     # scene = UscopeScene(width=145, height=123); scene.show_scene()
-    gb1 = FluorObj(typical_size=2.0, border_type='co', shape_method='g')
-    gb1.get_shape(); gb1.plot_shape()
+    gb1 = FluorObj(typical_size=2.0, border_type='co', shape_method='g'); gb1.get_shape(); gb1.plot_shape()
+    gb2 = FluorObj(typical_size=2.0, border_type='co', shape_method='lor'); gb2.get_shape(); gb2.plot_shape()
+    gb3 = FluorObj(typical_size=2.0, border_type='co', shape_method='dlogf'); gb3.get_shape(); gb3.plot_shape()
+    gb4 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump2'); gb4.get_shape(); gb4.plot_shape()
