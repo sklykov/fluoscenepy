@@ -18,9 +18,9 @@ from matplotlib.patches import Circle
 
 # %% Local (package-scoped) imports
 if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
-    from utils.raw_objects_gen import continuous_shaped_bead
+    from utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead
 else:
-    from .utils.raw_objects_gen import continuous_shaped_bead
+    from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead
 
 
 # %% Scene (image) class def.
@@ -134,10 +134,44 @@ class FluorObj():
     __acceptable_border_types: list = ['precise', 'pr', 'computed', 'co']; radius: float = 0.0; a: float = 0.0; b: float = 0.0
     typical_sizes: tuple = ()  # for storing descriptive parameters for curve describing the shape of the object
     # below - storing names of implemented computing functions for the define continuous shape
-    __acceptable_shape_methods = ['gaussian', 'g', 'lorentzian', 'lor', 'derivative of logistic func.', 'dlogf', 'bump square', 'bump2']
+    __acceptable_shape_methods = ['gaussian', 'g', 'lorentzian', 'lor', 'derivative of logistic func.', 'dlogf', 'bump square', 'bump2',
+                                  'bump cube', 'bump3', 'bump ^8', 'bump8', 'smooth circle', 'smcir']
+    center_shifts: tuple = (0.0, 0.0)
 
     def __init__(self, typical_size: Union[float, int, tuple], center_shifts: tuple = (0.0, 0.0), shape_type: str = 'round',
                  border_type: str = 'precise', shape_method: str = ''):
+        f"""
+        Initialize the class representation of a fluorescent object.
+
+        The difference between used parameters can be observed by plotting of the calculated shapes (profiles) by get_shape() method.
+
+        Parameters
+        ----------
+        typical_size : Union[float, int, tuple]
+            Typical sizes of the object, e.g. for a bead - radius (float or int), for ellipsoid - tuple with axis (a, b).
+        center_shifts : tuple, optional
+            Shifts in pixels of the object center, should be less than 1px. The default is (0.0, 0.0).
+        shape_type : str, optional
+            Supporeted shape types: {self.__acceptable_shape_types}. \n
+            Currently implemented: 'round' or 'r' - for the circular bead object. The default is 'round'.
+        border_type : str, optional
+            Type of intensity of the border pixels calculation. Supported border types: 'precise', 'pr', 'computed', 'co'. \n
+            The 'computed' or 'co' type should be accomponied with the specification of the shape method parameter. \n
+            The 'precise' or 'pr' type corresponds to the developed counting area of a pixel laying within the border (e.g., circular) of an object. \n
+            The default is 'precise'.
+        shape_method : str, optional
+            Shape method calculation, supported ones: {self.__acceptable_shape_methods}. The default is ''.
+
+        Raises
+        ------
+        ValueError
+            See the provided error description for details.
+
+        Returns
+        -------
+        None.
+
+        """
         # Sanity checks of the input values
         if shape_type in self.__acceptable_shape_types:
             self.shape_type = shape_type
@@ -148,19 +182,11 @@ class FluorObj():
         else:
             raise ValueError(f"Provided border type '{border_type}' not in acceptable list {self.__acceptable_border_types}")
         if self.shape_type == "round" or self.shape_type == "r":
-            if isinstance(typical_size, float):
-                if typical_size < 0.5:
-                    raise ValueError(f"Expected typical size (radius) should be larger than 0.5px, provided: {typical_size}")
-                else:
-                    self.radius = typical_size
-            elif isinstance(typical_size, int):
-                typical_size = float(typical_size)
-                if typical_size < 0.5:
-                    raise ValueError(f"Expected typical size (radius) should be larger than 0.5px, provided: {typical_size}")
-                else:
-                    self.radius = typical_size
+            typical_size = float(typical_size)  # assuming that the input parameter can be converted to the float type
+            if typical_size < 0.5:
+                raise ValueError(f"Expected typical size (radius) should be larger than 0.5px, provided: {typical_size}")
             else:
-                raise ValueError(f"For round particle expected type of typical size is float or int, not {type(typical_size)}")
+                self.radius = typical_size
         else:
             if self.shape_type == "elongated" or self.shape_type == "el":
                 if len(typical_size) != 2:
@@ -185,6 +211,12 @@ class FluorObj():
                     self.explicit_shape_name = 'derivative of logistic func.'
                 elif self.shape_method == 'bump2':
                     self.explicit_shape_name = 'bump square'
+                elif self.shape_method == 'bump3':
+                    self.explicit_shape_name = 'bump cube'
+                elif self.shape_method == 'bump8':
+                    self.explicit_shape_name = 'bump ^8'
+                elif self.shape_method == 'smcir':
+                    self.explicit_shape_name = 'smooth circle'
             else:
                 raise ValueError(f"Provided shape computation method '{shape_method}' not in acceptable list {self.__acceptable_shape_methods}")
         # Assuming that center shifts provided as the tuple with x shift, y shift floats in pixels
@@ -196,9 +228,26 @@ class FluorObj():
                 raise ValueError(f"One of the shifts '{center_shifts}' in pixels are more than 1px, "
                                  + "but the shifts are expected to be in the subpixel range")
 
-    def get_shape(self):
+    def get_shape(self) -> np.ndarray:
+        """
+        Calculate and return 2D intensity distribution of the object shape.
+
+        Raises
+        ------
+        NotImplementedError
+            For some set of allowed parameters the calculation hasn't been yet implemented.
+
+        Returns
+        -------
+        2D shape of the object (intensity representation).
+
+        """
         if (self.shape_type == "round" or self.shape_type == "r") and (self.border_type == "computed" or self.border_type == "co"):
             self.profile = continuous_shaped_bead(self.radius, self.center_shifts, bead_type=self.shape_method)
+        elif (self.shape_type == "round" or self.shape_type == "r") and (self.border_type == "precise" or self.border_type == "pr"):
+            self.profile = discrete_shaped_bead(self.radius, self.center_shifts)
+        else:
+            raise NotImplementedError("This set of input parameters hasn't yet been implemented")
 
     def plot_shape(self, str_id: str = ""):
         """
@@ -217,20 +266,50 @@ class FluorObj():
         if not plt.isinteractive():
             plt.ion()
         if self.profile is not None:
-            plt.figure(f"Shape with parameters: {self.shape_type}, {self.border_type}, {self.explicit_shape_name}, {str_id}")
-            axes_img = plt.imshow(self.profile, cmap=plt.cm.viridis, origin='upper'); plt.axis('off'); plt.colorbar()
-            plt.tight_layout()
+            plt.figure(f"Shape with parameters: {self.shape_type}, {self.border_type}, {self.explicit_shape_name}, "
+                       + f"center: {self.center_shifts} {str_id}")
+            axes_img = plt.imshow(self.profile, cmap=plt.cm.viridis, origin='upper'); plt.axis('off'); plt.colorbar(); plt.tight_layout()
             if self.shape_type == "round" or self.shape_type == "r":
-                m_center, n_center = self.profile.shape; m_center = m_center // 2 + self.center_shifts[1]
-                n_center = n_center // 2 + self.center_shifts[0]
-                axes_img.axes.add_patch(Circle((n_center, m_center), self.radius, edgecolor='red', linewidth=1.5, facecolor='none'))
+                m_center, n_center = self.profile.shape
+                if self.center_shifts[0] >= 0.0:
+                    m_center = m_center // 2 + self.center_shifts[0]
+                else:
+                    m_center = m_center // 2 + self.center_shifts[0] + 1.0
+                if self.center_shifts[1] >= 0.0:
+                    n_center = n_center // 2 + self.center_shifts[1]
+                else:
+                    n_center = n_center // 2 + self.center_shifts[1] + 1.0
+                axes_img.axes.add_patch(Circle((m_center, n_center), self.radius, edgecolor='red', linewidth=1.5, facecolor='none'))
+                axes_img.axes.plot(m_center, n_center, marker='.', linewidth=3, color='red')
 
 
 # %% Some tests
 if __name__ == "__main__":
-    plt.close("all")
+    plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = True
+    test_presice_shifted_beads = True; shifts = (-0.69, 0.44)
+
+    # Testing the scene generation with a few objects
     # scene = UscopeScene(width=145, height=123); scene.show_scene()
-    gb1 = FluorObj(typical_size=2.0, border_type='co', shape_method='g'); gb1.get_shape(); gb1.plot_shape()
-    gb2 = FluorObj(typical_size=2.0, border_type='co', shape_method='lor'); gb2.get_shape(); gb2.plot_shape()
-    gb3 = FluorObj(typical_size=2.0, border_type='co', shape_method='dlogf'); gb3.get_shape(); gb3.plot_shape()
-    gb4 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump2'); gb4.get_shape(); gb4.plot_shape()
+
+    # Testing the centered round objects generation
+    if test_computed_centered_beads:
+        gb1 = FluorObj(typical_size=2.0, border_type='co', shape_method='g'); gb1.get_shape(); gb1.plot_shape()
+        gb2 = FluorObj(typical_size=2.0, border_type='co', shape_method='lor'); gb2.get_shape(); gb2.plot_shape()
+        gb3 = FluorObj(typical_size=2.0, border_type='co', shape_method='dlogf'); gb3.get_shape(); gb3.plot_shape()
+        gb4 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump2'); gb4.get_shape(); gb4.plot_shape()
+        gb5 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump3'); gb5.get_shape(); gb5.plot_shape()
+        gb6 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump8'); gb6.get_shape(); gb6.plot_shape()
+        gb7 = FluorObj(typical_size=2.0, border_type='co', shape_method='smcir'); gb7.get_shape(); gb7.plot_shape()
+    if test_precise_centered_bead:
+        gb8 = FluorObj(typical_size=2.0); gb8.get_shape(); gb8.plot_shape()
+    # Testing the shifted from the center objects generation
+    if test_computed_shifted_beads:
+        gb1 = FluorObj(typical_size=2.0, border_type='co', shape_method='g', center_shifts=shifts); gb1.get_shape(); gb1.plot_shape()
+        gb2 = FluorObj(typical_size=2.0, border_type='co', shape_method='lor', center_shifts=shifts); gb2.get_shape(); gb2.plot_shape()
+        gb3 = FluorObj(typical_size=2.0, border_type='co', shape_method='dlogf', center_shifts=shifts); gb3.get_shape(); gb3.plot_shape()
+        gb4 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump2', center_shifts=shifts); gb4.get_shape(); gb4.plot_shape()
+        gb5 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump3', center_shifts=shifts); gb5.get_shape(); gb5.plot_shape()
+        gb6 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump8', center_shifts=shifts); gb6.get_shape(); gb6.plot_shape()
+        gb7 = FluorObj(typical_size=2.0, border_type='co', shape_method='smcir', center_shifts=shifts); gb7.get_shape(); gb7.plot_shape()
+    if test_presice_shifted_beads:
+        gb8 = FluorObj(typical_size=2.0, center_shifts=shifts); gb8.get_shape(); gb8.plot_shape()
