@@ -69,43 +69,13 @@ def make_sample(radius: float, center_shift: tuple, max_intensity=255, test_plot
     q_rad = round(0.25*radius, 6); size_subareas = 1001; normalization = 0.001*size_subareas*size_subareas
     for i in range(max_size):
         for j in range(max_size):
-            distance = distance_f(i, j, i_center, j_center)
-            pixel_value = 0.0  # meaning the intensity in the pixel
+            distance = distance_f(i, j, i_center, j_center); pixel_value = 0.0  # meaning the intensity in the pixel
 
-            # Discrete function
-            # if distance < 0.5*radius:
-            #     pixel_value = max_intensity
-            # elif distance < radius:
-            #     pixel_value = float(max_intensity)*np.exp(pow(0.5, 1.25) - np.power(distance/radius, 1.25))
-            # else:
-            #     pixel_value = float(max_intensity)*np.exp(pow(0.5, 2.5) - np.power(distance/radius, 2.5))
-
-            # # Continiuous bump function - too scaled result
-            # r_exceed = 0.499; power = 4
-            # if distance < radius*(1.0 + r_exceed):
-            #     x = distance/(radius + r_exceed)
-            #     x_pow = pow(x, power); b_pow = pow(1.0 + r_exceed, power)
-            #     pixel_value = e*np.exp(b_pow/(x_pow - b_pow))
-
-            # Discontinuous
-            # x = distance / radius; ots = np.exp(-1.0/np.power(6.0, 2))
-            # if distance < radius:
-            #     pixel_value = np.exp(-np.power(x, 2)/np.power(6.0, 2))
-            # else:
-            #     x_shift = pow(x, 4); x_c = pow(0.95, 4)
-            #     pixel_value = ots*np.exp(x_c - x_shift)
-
-            # The center of bead lays always within single pixel
-            # oversize = round(radius + 1 + net_shift, 6); bump_f_power = 16
+            # The center of bead lays always within single pixel (less than the quarter of radius)
             if distance < q_rad:
                 pixel_value = 1.0  # entire pixel lays inside the circle
-            # elif distance <= oversize - 0.5:
-            #     x = pow(distance, bump_f_power); b = pow(oversize, bump_f_power)
-            #     pixel_value = e*np.exp(b/(x - b))
 
-            # The scheme below - overcomplicated and requires better definition of intersections of pixels and circle curvature
             # Rough estimate of the potentially outside pixels - they should be checked for intersection with the circle
-
             elif q_rad <= distance <= radius + net_shift + 1.0:
                 stop_checking = False  # flag for quitting this calculations
                 # First, sort out the pixels that lay completely within the circle, but the distance is more than quarter of R:
@@ -153,6 +123,7 @@ def make_sample(radius: float, center_shift: tuple, max_intensity=255, test_plot
                             plt.figure(f"[{i, j}]"); plt.imshow(circle_arc_area1)
                         S1 = 1.0
                     print(f"Found ratio for the pixel [{i, j}]:", S1); pixel_value = S1
+                    # Commented out below - debugging of the method, prooving the calculation is right, kept for checking
                     # print(f"Found ratio for the pixel [{i, j}]:", S, "diff for - vect. implementations:", round(abs(S-S1), 6))
                     # r_diff1 = round(r2 - np.power(i_m - i_center, 2), 6); r_diff2 = round(r2 - np.power(j_m - j_center, 2), 6)
                     # r_diff3 = round(r2 - np.power(i_p - i_center, 2), 6); r_diff4 = round(r2 - np.power(j_p - j_center, 2), 6)
@@ -304,6 +275,10 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
         max_size = int(round(2.0*r, 0))
     elif bead_type == 'smooth circle' or bead_type == 'smcir':
         max_size = int(round(2.5*r, 0))
+    elif bead_type == 'oversampled circle' or bead_type == 'ovcir':
+        max_size = int(round(2.25*r, 0))
+    elif bead_type == 'undersampled circle' or bead_type == 'uncir':
+        max_size = int(round(2.0*r, 0))
     else:
         max_size = int(round(4.0*r, 0))
     x_shift, y_shift = center_shifts
@@ -358,6 +333,20 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
                 elif 1.0*r <= distance < cutoff_radius:
                     diff_distance = distance/r - 0.5  # difference between distance to the pixel and half of the radius
                     img[i, j] = 0.94 - diff_distance
+            elif bead_type == 'oversampled circle' or bead_type == 'ovcir':
+                net_shift = round(0.5*np.sqrt(y_shift*y_shift + x_shift*x_shift), 6)  # calculation the net shift of the picture center
+                if distance <= r:
+                    img[i, j] = 1.0  # the pixel lays definitely inside of a radius of a circle
+                elif distance <= r + net_shift + 1.0:  # The pixel is potentially intersecting with the circle border
+                    i_m = i - 0.5; j_m = j - 0.5; i_p = i + 0.5; j_p = j + 0.5; size_subareas = 500
+                    x_row = np.linspace(start=i_m, stop=i_p, num=size_subareas); y_col = np.linspace(start=j_m, stop=j_p, num=size_subareas)
+                    coords = np.meshgrid(x_row, y_col); distances = distance_f(coords[0], coords[1], i_center, j_center)
+                    circle_arc_area = np.where(distances <= r, 0.02, 0.0)  # assigning the non-zero number for intersected mesh grid points
+                    if np.max(circle_arc_area) > 0.0:  # pixel intersects with the circle border
+                        img[i, j] = 1.0
+            elif bead_type == 'undersampled circle' or bead_type == 'uncir':
+                if distance < r:  # the border pixels (observed when the bead is centered) are removed, only with distances less than r saved
+                    img[i, j] = 1.0
     # Normalization of profile
     if (bead_type == 'derivative of logistic func.' or bead_type == 'dlogf' or bead_type == 'bump square' or bead_type == 'bump2'
        or bead_type == 'bump cube' or bead_type == 'bump3' or bead_type == 'bump ^8' or bead_type == 'bump8'):
@@ -402,7 +391,7 @@ def discrete_shaped_bead(r: float, center_shifts: tuple) -> np.ndarray:
         j_center = j_img_center + x_shift
     else:
         j_center = j_img_center + x_shift + 1.0
-    net_shift = round(0.5*np.sqrt(y_shift*y_shift + x_shift*x_shift), 6)  # calculation the shift of the picture center
+    net_shift = round(0.5*np.sqrt(y_shift*y_shift + x_shift*x_shift), 6)  # calculation the net shift of the picture center
     # Calculating the intensity distribution pixelwise with strict definition
     q_rad = round(0.25*r, 6); size_subareas = 626  # number of subareas + 1 that can make defined number of steps, like np.linspace(0, 1, 11)
     single_point_value = 1.0/(size_subareas-1)  # single point non-zero value used below for finding number of points within circle border

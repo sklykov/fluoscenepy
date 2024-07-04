@@ -39,10 +39,11 @@ class UscopeScene():
     """
 
     # Class parameters
-    width: int; height: int; __warn_message: str = ""; max_pixel_value = 255; img_type = np.uint8
-    acceptable_img_types = ['uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64]
+    width: int = 2; height: int = 2; __warn_message: str = ""; max_pixel_value = 255; img_type = np.uint8
+    acceptable_img_types: list = ['uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64]
+    max_pixel_value_uint8: int = 255; max_pixel_value_uint16: int = 65535
 
-    def __init__(self, width: int, height: int, img_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8'):
+    def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8'):
         """
         Initialize the class wrapper for store the current "scene" or microscopic image.
 
@@ -52,7 +53,7 @@ class UscopeScene():
             Width of the scene in pixels.
         height : int
             Height of the scene in pixels.
-        img_type : str | np.uint8 | np.uint16 | np.float64, optional
+        image_type : str | np.uint8 | np.uint16 | np.float64, optional
             Image type, for supported ones see the acceptable types. The default is 'uint8'.
 
         Raises
@@ -73,12 +74,12 @@ class UscopeScene():
             warnings.warn(__warn_message)
         self.width = width; self.height = height
         # Check an image type
-        if img_type not in self.acceptable_img_types:
-            raise ValueError(f"Provided image type '{img_type}' not in the acceptable list of types: " + str(self.acceptable_img_types))
+        if image_type not in self.acceptable_img_types:
+            raise ValueError(f"Provided image type '{image_type}' not in the acceptable list of types: " + str(self.acceptable_img_types))
         else:
-            if img_type == 'uint16' or img_type == np.uint16:
-                self.max_pixel_value = 65535; self.img_type = np.uint16
-            elif img_type == 'float' or img_type == np.float64:
+            if image_type == 'uint16' or image_type is np.uint16:
+                self.max_pixel_value = self.max_pixel_value_uint16; self.img_type = np.uint16
+            elif image_type == 'float' or image_type is np.float64:
                 self.max_pixel_value = 1.0; self.img_type = np.float64
         # Initialize zero scene
         self.image = np.zeros(shape=(height, width), dtype=self.img_type)
@@ -135,8 +136,10 @@ class FluorObj():
     typical_sizes: tuple = ()  # for storing descriptive parameters for curve describing the shape of the object
     # below - storing names of implemented computing functions for the define continuous shape
     __acceptable_shape_methods = ['gaussian', 'g', 'lorentzian', 'lor', 'derivative of logistic func.', 'dlogf', 'bump square', 'bump2',
-                                  'bump cube', 'bump3', 'bump ^8', 'bump8', 'smooth circle', 'smcir']
-    center_shifts: tuple = (0.0, 0.0)
+                                  'bump cube', 'bump3', 'bump ^8', 'bump8', 'smooth circle', 'smcir', 'oversampled circle', 'ovcir',
+                                  'undersampled circle', 'uncir']
+    image_type = None; center_shifts: tuple = (0.0, 0.0)   # subpixel shift of the center of the object
+    casted_profile: np.ndarray = None  # casted normalized profile to the provided image type
 
     def __init__(self, typical_size: Union[float, int, tuple], center_shifts: tuple = (0.0, 0.0), shape_type: str = 'round',
                  border_type: str = 'precise', shape_method: str = ''):
@@ -217,6 +220,10 @@ class FluorObj():
                     self.explicit_shape_name = 'bump ^8'
                 elif self.shape_method == 'smcir':
                     self.explicit_shape_name = 'smooth circle'
+                elif self.shape_method == 'ovcir':
+                    self.explicit_shape_name = 'oversampled circle'
+                elif self.shape_method == 'uncir':
+                    self.explicit_shape_name = 'undersampled circle'
             else:
                 raise ValueError(f"Provided shape computation method '{shape_method}' not in acceptable list {self.__acceptable_shape_methods}")
         # Assuming that center shifts provided as the tuple with x shift, y shift floats in pixels
@@ -225,17 +232,17 @@ class FluorObj():
             if abs(x_shift) < 1.0 and abs(y_shift) < 1.0:
                 self.center_shifts = center_shifts
             else:
-                raise ValueError(f"One of the shifts '{center_shifts}' in pixels are more than 1px, "
-                                 + "but the shifts are expected to be in the subpixel range")
+                raise ValueError(f"One of the shifts '{center_shifts}' are more than 1px, but the shifts are expected to be in the subpixel range")
 
+    # %% Calculate and plot shape
     def get_shape(self) -> np.ndarray:
         """
-        Calculate and return 2D intensity distribution of the object shape.
+        Calculate and return 2D intensity normalized (to the range [0.0, 1.0]) distribution of the object shape.
 
         Raises
         ------
         NotImplementedError
-            For some set of allowed parameters the calculation hasn't been yet implemented.
+            For some set of allowed parameters for class initialization the calculation hasn't been yet implemented.
 
         Returns
         -------
@@ -249,9 +256,50 @@ class FluorObj():
         else:
             raise NotImplementedError("This set of input parameters hasn't yet been implemented")
 
+    def get_casted_shape(self, max_pixel_value: int | float, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') -> np.ndarray | None:
+        """
+        Calculate casted from the computed normalized object shape.
+
+        Parameters
+        ----------
+        max_pixel_value : int | float
+            Maximum intensity or pixel value of the object.
+        image_type : Union[str, np.uint8, np.uint16, np.float64], optional
+            Type for casting. The default is 'uint8'.
+
+        Raises
+        ------
+        ValueError
+            If the provided max_pixel_value doesn't correspond to the provided image type.
+
+        Returns
+        -------
+        numpy.ndarray | None
+            Returns the casted profile or None if the normalized profile hasn't been calculated.
+
+        """
+        if image_type not in UscopeScene.acceptable_img_types:
+            raise ValueError(f"Provided image type '{image_type}' not in the acceptable list of types: " + str(UscopeScene.acceptable_img_types))
+        if self.profile is not None:
+            if image_type == 'uint8' or image_type is np.uint8:
+                if max_pixel_value > UscopeScene.max_pixel_value_uint8 or max_pixel_value < 0:
+                    raise ValueError(f"Provided max pixel value {max_pixel_value} isn't compatible with the provided image type: {image_type}")
+                self.image_type = image_type; self.casted_profile = np.round(max_pixel_value*self.profile, 0).astype(np.uint8)
+                return self.casted_profile
+            elif image_type == 'uint16' or image_type is np.uint16:
+                if max_pixel_value > UscopeScene.max_pixel_value_uint16 or max_pixel_value < 0:
+                    raise ValueError(f"Provided max pixel value {max_pixel_value} isn't compatible with the provided image type: {image_type}")
+                self.image_type = image_type; self.casted_profile = np.round(max_pixel_value*self.profile, 0).astype(np.uint16)
+                return self.casted_profile
+            elif image_type == 'float' or image_type is np.float64:
+                self.image_type = image_type; self.casted_profile = max_pixel_value*self.profile
+                return self.casted_profile
+        else:
+            self.casted_profile = None; return self.casted_profile
+
     def plot_shape(self, str_id: str = ""):
         """
-        Plot interactively the profile of the object computed by get_shape() method along with the border of the object (for round objects).
+        Plot interactively the profile of the object computed by the get_shape() method along with the border of the object.
 
         Parameters
         ----------
@@ -282,10 +330,31 @@ class FluorObj():
                 axes_img.axes.add_patch(Circle((m_center, n_center), self.radius, edgecolor='red', linewidth=1.5, facecolor='none'))
                 axes_img.axes.plot(m_center, n_center, marker='.', linewidth=3, color='red')
 
+    def plot_casted_shape(self, str_id: str = ""):
+        """
+        Plot interactively the casted to the provided type profile of the object computed by the get_casted_shape() method.
+
+        Parameters
+        ----------
+        str_id : str, optional
+            Unique string id for plotting several plots with unique Figure() names. The default is "".
+
+        Returns
+        -------
+        None.
+
+        """
+        if not plt.isinteractive():
+            plt.ion()
+        if self.casted_profile is not None:
+            plt.figure(f"Casted shape with parameters: {self.shape_type}, {self.border_type}, {self.explicit_shape_name}, "
+                       + f"center: {self.center_shifts} {str_id}")
+            axes_img = plt.imshow(self.casted_profile, cmap='gray', origin='upper'); plt.axis('off'); plt.colorbar(); plt.tight_layout()
+
 
 # %% Some tests
 if __name__ == "__main__":
-    plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = True
+    plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_presice_shifted_beads = True; shifts = (-0.69, 0.44)
 
     # Testing the scene generation with a few objects
@@ -300,10 +369,12 @@ if __name__ == "__main__":
         gb5 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump3'); gb5.get_shape(); gb5.plot_shape()
         gb6 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump8'); gb6.get_shape(); gb6.plot_shape()
         gb7 = FluorObj(typical_size=2.0, border_type='co', shape_method='smcir'); gb7.get_shape(); gb7.plot_shape()
+        gb9 = FluorObj(typical_size=2.0, border_type='co', shape_method='ovcir'); gb9.get_shape(); gb9.plot_shape()
+        gb10 = FluorObj(typical_size=2.0, border_type='co', shape_method='uncir'); gb10.get_shape(); gb10.plot_shape()
     if test_precise_centered_bead:
         gb8 = FluorObj(typical_size=2.0); gb8.get_shape(); gb8.plot_shape()
     # Testing the shifted from the center objects generation
-    if test_computed_shifted_beads:
+    if test_computed_shifted_beads and not test_computed_centered_beads:
         gb1 = FluorObj(typical_size=2.0, border_type='co', shape_method='g', center_shifts=shifts); gb1.get_shape(); gb1.plot_shape()
         gb2 = FluorObj(typical_size=2.0, border_type='co', shape_method='lor', center_shifts=shifts); gb2.get_shape(); gb2.plot_shape()
         gb3 = FluorObj(typical_size=2.0, border_type='co', shape_method='dlogf', center_shifts=shifts); gb3.get_shape(); gb3.plot_shape()
@@ -311,5 +382,8 @@ if __name__ == "__main__":
         gb5 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump3', center_shifts=shifts); gb5.get_shape(); gb5.plot_shape()
         gb6 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump8', center_shifts=shifts); gb6.get_shape(); gb6.plot_shape()
         gb7 = FluorObj(typical_size=2.0, border_type='co', shape_method='smcir', center_shifts=shifts); gb7.get_shape(); gb7.plot_shape()
+        gb9 = FluorObj(typical_size=2.0, border_type='co', shape_method='ovcir', center_shifts=shifts); gb9.get_shape(); gb9.plot_shape()
+        gb10 = FluorObj(typical_size=2.0, border_type='co', shape_method='uncir', center_shifts=shifts); gb10.get_shape(); gb10.plot_shape()
     if test_presice_shifted_beads:
         gb8 = FluorObj(typical_size=2.0, center_shifts=shifts); gb8.get_shape(); gb8.plot_shape()
+        gb8.get_casted_shape(255, 'uint8'); gb8.plot_casted_shape()
