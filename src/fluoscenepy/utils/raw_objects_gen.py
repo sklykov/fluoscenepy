@@ -10,12 +10,15 @@ Raw script for various object profile generation.
 # %% Imports
 import numpy as np
 import matplotlib.pyplot as plt
-from math import e
+from math import e, cos, sin
+from typing import Union  # for making type hints for the package compliant with Python >= 3.8
 # from matplotlib.patches import Circle
+from matplotlib.patches import Ellipse
 
 
-# %% Raw Object generation
-def distance_f(i_px, j_px, i_centre, j_centre):
+# %% Utility functions
+# Note that type hints line int | float works for Python >= 3.10
+def distance_f(i_px: Union[int, np.ndarray], j_px: Union[int, np.ndarray], i_centre: Union[int, float], j_centre: Union[int, float]):
     """
     Calculate the distances for pixels.
 
@@ -25,9 +28,9 @@ def distance_f(i_px, j_px, i_centre, j_centre):
         Pixel(-s) i of an image.
     j_px : int or numpy.ndarray
         Pixel(-s) i of an image.
-    i_centre : int
+    i_centre : int | float
         Center of an image.
-    j_centre : int
+    j_centre : int | float
         Center of an image.
 
     Returns
@@ -39,6 +42,19 @@ def distance_f(i_px, j_px, i_centre, j_centre):
     return np.round(np.sqrt(np.power(i_px - i_centre, 2) + np.power(j_px - j_centre, 2)), 6)
 
 
+def ellipse_equation(i_px: Union[int, np.ndarray], j_px: Union[int, np.ndarray], i_centre: Union[int, float], j_centre: Union[int, float],
+                     a: Union[int, float], b: Union[int, float], angle: Union[int, float]) -> float:
+    angle = -angle  # makes the angle assignment consistent with the counter-clockwise count
+    # Source for the equations below: https://en.wikipedia.org/wiki/Ellipse
+    a_h2 = 0.25*a*a; b_h2 = 0.25*b*b  # half of axis (width and height) are used in the equations
+    X = (j_px - j_centre)*cos(angle) + (i_px - i_centre)*sin(angle)  # projected X coordinate
+    Y = -(j_px - j_centre)*sin(angle) + (i_px - i_centre)*cos(angle)  # projected Y coordinate
+    i_diff2 = np.power(Y, 2); j_diff2 = np.power(X, 2)  # the general equation for ellipse
+    eq = np.round(j_diff2/a_h2 + i_diff2/b_h2, 6)  # analytical equation for the shifted ellipse
+    return eq
+
+
+# %% Legacy code with testing of various object generation concepts
 def make_sample(radius: float, center_shift: tuple, max_intensity=255, test_plots: bool = False) -> np.ndarray:
     if radius < 1.0:
         radius = 1.0
@@ -242,7 +258,7 @@ def bump_f(x: np.ndarray, b: float = 1.0, power: int = 2) -> np.ndarray:
     return y
 
 
-# %% 2D shapes based on continuous functions
+# %% 2D shapes for beads (disk, circle) calculation
 def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np.ndarray:
     """
     Bead with the shape defined depending on the provided type by using the continuous functions (distributions).
@@ -381,7 +397,7 @@ def discrete_shaped_bead(r: float, center_shifts: tuple) -> np.ndarray:
             max_size += 1
     if max_size % 2 == 0:
         max_size += 1
-    img = np.zeros(dtype=np.float32, shape=(max_size, max_size))  # crating by default float image, normalized to 1.0 as the max intensity
+    img = np.zeros(dtype=np.float32, shape=(max_size, max_size))  # creating by default float image, normalized to 1.0 as the max intensity
     i_img_center = max_size // 2; j_img_center = max_size // 2
     if y_shift >= 0.0:
         i_center = i_img_center + y_shift
@@ -431,13 +447,68 @@ def discrete_shaped_bead(r: float, center_shifts: tuple) -> np.ndarray:
     return img
 
 
+# %% 2D shape representation calculation for the object with ellipse shape
+def discrete_shaped_ellipse(sizes: tuple, angle: float, center_shifts: tuple, verbose_plots: bool = False) -> np.ndarray:
+    a, b = sizes  # from the definition of an ellipse: length of 2 axis
+    max_d = max(a, b)  # for defining the largest and smallest axis of an ellipse
+    max_size = int(round(1.25*max_d, 0))  # default size for the profile
+    x_shift, y_shift = center_shifts  # unpacking the shift of the object center
+    if abs(y_shift) > 0.0 or abs(x_shift) > 0.0:
+        max_size += 1
+        if abs(y_shift) > 0.4 or abs(x_shift) > 0.4:
+            max_size += 1
+    if max_size % 2 == 0:
+        max_size += 1
+    img = np.zeros(dtype=np.float32, shape=(max_size, max_size))  # creating by default float image, normalized to 1.0 as the max intensity
+    i_img_center = max_size // 2; j_img_center = max_size // 2
+    i_center = i_img_center + y_shift; j_center = j_img_center + x_shift
+    # net_shift = round(0.5*np.sqrt(y_shift*y_shift + x_shift*x_shift), 6)  # calculation the net shift of the picture center
+    # Calculating the intensity distribution pixelwise with strict definition
+    size_subareas = 626  # number of subareas + 1 that can make defined number of steps, like np.linspace(0, 1, 11)
+    single_point_value = 1.0/(size_subareas-1)  # single point non-zero value used below for finding number of points within circle border
+    normalization = single_point_value*size_subareas*size_subareas  # normalization for summation of all points
+    for i in range(max_size):
+        for j in range(max_size):
+            distance = ellipse_equation(i, j, i_center, j_center, a, b, angle)  # equation for the ellipse testing
+            pixel_value = 0.0  # meaning the intensity in the pixel defined on the rules below
+            if 0.0 <= distance < 4.0:  # The pixel is intersecting with the ellipse border
+                stop_checking = False  # flag for quitting this calculations if the pixel is proven to lay completely inside of the circle
+                # First, sort out the pixels that lay completely within the ellipse border, but the distance is more than quarter:
+                if i < i_center:
+                    i_corner = i - 0.5
+                else:
+                    i_corner = i + 0.5
+                if j < j_center:
+                    j_corner = j - 0.5
+                else:
+                    j_corner = j + 0.5
+                # Below - distance to the most distant point of the pixel
+                distance_corner = ellipse_equation(i_corner, j_corner, i_center, j_center, a, b, angle)
+                if distance_corner <= 1.0:
+                    pixel_value = 1.0; stop_checking = True
+                # So, the pixel's borders can potentially are intersected by the circle, calculate the estimated intersection area for pixel intensity
+                if not stop_checking:
+                    i_m = i - 0.5; j_m = j - 0.5; i_p = i + 0.5; j_p = j + 0.5
+                    x_row = np.linspace(start=i_m, stop=i_p, num=size_subareas); y_col = np.linspace(start=j_m, stop=j_p, num=size_subareas)
+                    coords = np.meshgrid(x_row, y_col); distances = ellipse_equation(coords[0], coords[1], i_center, j_center, a, b, angle)
+                    circle_arc_area1 = np.where(distances <= 1.0, single_point_value, 0.0)  # assigning the non-zero number for intersected grid points
+                    S1 = round(np.sum(circle_arc_area1)/normalization, 6)
+                    if S1 > 1.0:
+                        S1 = 1.0  # in the rare cases the integration sum can be more than 1.0 due to the limited precision of numerical integration
+                    pixel_value = S1  # assigning the found square of the area laying inside of a circle
+                if verbose_plots:
+                    plt.figure(f"Pixel {i, j} intersection"); plt.imshow(circle_arc_area1)
+            img[i, j] = pixel_value  # assign the computed intensity to the stored 2D profile
+    return img
+
+
 # %% Default exports from this module
 __all__ = ['continuous_shaped_bead', 'discrete_shaped_bead']
 
 # %% Tests
 if __name__ == "__main__":
-    test_disk_show = True; figsizes = (6.5, 6.5)
-    # Testing disk representation
+    test_disk_show = False; test_ellipse_centered = True; test_ellipse_shifted = True; figsizes = (6.5, 6.5); plt.close('all')
+    # Testing disk (circle or bead) representation
     if test_disk_show:
         i_shift = 0.23; j_shift = -0.591; disk_r = 6.0
         # disk1 = make_sample(radius=disk_r, center_shift=(i_shift, j_shift), test_plots=False)
@@ -459,3 +530,18 @@ if __name__ == "__main__":
         bump8 = bump_f(r1, size, 8); bump16 = bump_f(r1, size, 16); bump32 = bump_f(r1, size, 32)
         plt.figure("Bump() Comparison"); plt.plot(r1, bump2, r1, bump3, r1, bump4, r1, bump8, r1, bump16)
         plt.legend(['^2', '^3', '^4', '^8', '^16']); plt.axvline(x=0.5); plt.axvline(x=1.0)
+    # Testing the centered ellipse form calculation
+    if test_ellipse_centered:
+        a = 6.8; b = 2.69; j_shift = 0; i_shift = 0; shifts = (i_shift, j_shift); angle_grad = 10.0; angle = (angle_grad*np.pi)/180.0
+        ellipse_centered = discrete_shaped_ellipse((a, b), angle, shifts)
+        plt.figure(figsize=figsizes); axes_img = plt.imshow(ellipse_centered, cmap=plt.cm.viridis); plt.tight_layout()
+        m_center, n_center = ellipse_centered.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
+        axes_img.axes.add_patch(Ellipse((n_center, m_center,), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
+        axes_img.axes.plot(m_center, n_center, marker='.', linewidth=3.5, color='red')
+    if test_ellipse_shifted:
+        a = 6.8; b = 2.69; j_shift = -0.36; i_shift = 0.78; shifts = (j_shift, i_shift); angle_grad = 10.0; angle = (angle_grad*np.pi)/180.0
+        ellipse_centered = discrete_shaped_ellipse((a, b), angle, shifts)
+        plt.figure(figsize=figsizes); axes_img = plt.imshow(ellipse_centered, cmap=plt.cm.viridis); plt.tight_layout()
+        m_center, n_center = ellipse_centered.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
+        axes_img.axes.add_patch(Ellipse((n_center, m_center,), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
+        axes_img.axes.plot(n_center, m_center, marker='.', linewidth=3.5, color='red')

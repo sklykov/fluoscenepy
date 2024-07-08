@@ -131,7 +131,7 @@ class FluorObj():
 
     # Class parameters
     shape_type: str = ""; border_type: str = ""; shape_method: str = ""; explicit_shape_name: str = ""; profile: np.ndarray = None
-    __acceptable_shape_types: list = ['round', 'r', 'elongated', 'el', 'curved', 'c']  # shape types of the object
+    __acceptable_shape_types: list = ['round', 'r', 'ellipse', 'el', 'curved', 'c']  # shape types of the object
     __acceptable_border_types: list = ['precise', 'pr', 'computed', 'co']; radius: float = 0.0; a: float = 0.0; b: float = 0.0
     typical_sizes: tuple = ()  # for storing descriptive parameters for curve describing the shape of the object
     # below - storing names of implemented computing functions for the define continuous shape
@@ -191,13 +191,16 @@ class FluorObj():
             else:
                 self.radius = typical_size
         else:
-            if self.shape_type == "elongated" or self.shape_type == "el":
-                if len(typical_size) != 2:
-                    raise ValueError("For elongated particle expected length of typical size tuple is equal 2")
+            if self.shape_type == "ellipse" or self.shape_type == "el":
+                if len(typical_size) != 3:
+                    raise ValueError("For ellipse particle expected length of typical size tuple is equal 3: (a, b, angle)")
                 else:
-                    a, b = typical_size; max_size = max(a, b); min_size = min(a, b)
+                    a, b, angle = typical_size; max_size = max(a, b); min_size = min(a, b)
                     if max_size < 0.5 or min_size < 0.0:
                         raise ValueError("Expected sizes a, b should be positive and more than 0.5px")
+                    if angle > 2.0*np.pi or angle < -2.0*np.pi:
+                        raise ValueError("Expected angle should be in the range of [-2pi, 2pi]")
+                    self.typical_sizes = typical_size
             else:
                 if len(typical_size) <= 2:
                     raise ValueError("For curved particle expected length of typical size tuple is more than 2")
