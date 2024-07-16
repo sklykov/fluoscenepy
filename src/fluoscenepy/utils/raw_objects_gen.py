@@ -449,6 +449,26 @@ def discrete_shaped_bead(r: float, center_shifts: tuple) -> np.ndarray:
 
 # %% 2D shape representation calculation for the object with ellipse shape
 def discrete_shaped_ellipse(sizes: tuple, angle: float, center_shifts: tuple, verbose_plots: bool = False) -> np.ndarray:
+    """
+    Calculate ellipse shape project on the pixels.
+
+    Parameters
+    ----------
+    sizes : tuple
+        Sizes a, b for an ellipse.
+    angle : float
+        Angle (counter-clockwise) between b and X axes.
+    center_shifts : tuple
+        Pixelwise shifts of a ellipse center.
+    verbose_plots : bool, optional
+        Plotting of border sections of an ellipse. The default is False.
+
+    Returns
+    -------
+    img : numpy.ndarray
+        2D normalized shape of the bead.
+
+    """
     a, b = sizes  # from the definition of an ellipse: length of 2 axis
     max_d = max(a, b)  # for defining the largest and smallest axis of an ellipse
     max_size = int(round(1.25*max_d, 0))  # default size for the profile
@@ -474,17 +494,17 @@ def discrete_shaped_ellipse(sizes: tuple, angle: float, center_shifts: tuple, ve
             if 0.0 <= distance < 4.0:  # The pixel is intersecting with the ellipse border
                 stop_checking = False  # flag for quitting this calculations if the pixel is proven to lay completely inside of the circle
                 # First, sort out the pixels that lay completely within the ellipse border, but the distance is more than quarter:
-                if i < i_center:
+                if i <= i_center:  # shift to the left
                     i_corner = i - 0.5
                 else:
                     i_corner = i + 0.5
-                if j < j_center:
+                if j < j_center:  # shift to the buttom
                     j_corner = j - 0.5
                 else:
                     j_corner = j + 0.5
                 # Below - distance to the most distant point of the pixel
                 distance_corner = ellipse_equation(i_corner, j_corner, i_center, j_center, a, b, angle)
-                if distance_corner <= 1.0:
+                if distance_corner < 0.5:  # empirical value for estimation that the pixel is entirely inside of an ellipse
                     pixel_value = 1.0; stop_checking = True
                 # So, the pixel's borders can potentially are intersected by the circle, calculate the estimated intersection area for pixel intensity
                 if not stop_checking:
@@ -503,7 +523,7 @@ def discrete_shaped_ellipse(sizes: tuple, angle: float, center_shifts: tuple, ve
 
 
 # %% Default exports from this module
-__all__ = ['continuous_shaped_bead', 'discrete_shaped_bead']
+__all__ = ['continuous_shaped_bead', 'discrete_shaped_bead', 'discrete_shaped_ellipse']
 
 # %% Tests
 if __name__ == "__main__":
@@ -536,12 +556,12 @@ if __name__ == "__main__":
         ellipse_centered = discrete_shaped_ellipse((a, b), angle, shifts)
         plt.figure(figsize=figsizes); axes_img = plt.imshow(ellipse_centered, cmap=plt.cm.viridis); plt.tight_layout()
         m_center, n_center = ellipse_centered.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
-        axes_img.axes.add_patch(Ellipse((n_center, m_center,), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
+        axes_img.axes.add_patch(Ellipse((n_center, m_center), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
         axes_img.axes.plot(m_center, n_center, marker='.', linewidth=3.5, color='red')
     if test_ellipse_shifted:
         a = 6.8; b = 2.69; j_shift = -0.36; i_shift = 0.78; shifts = (j_shift, i_shift); angle_grad = 10.0; angle = (angle_grad*np.pi)/180.0
         ellipse_centered = discrete_shaped_ellipse((a, b), angle, shifts)
         plt.figure(figsize=figsizes); axes_img = plt.imshow(ellipse_centered, cmap=plt.cm.viridis); plt.tight_layout()
         m_center, n_center = ellipse_centered.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
-        axes_img.axes.add_patch(Ellipse((n_center, m_center,), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
+        axes_img.axes.add_patch(Ellipse((n_center, m_center), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
         axes_img.axes.plot(n_center, m_center, marker='.', linewidth=3.5, color='red')
