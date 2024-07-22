@@ -39,7 +39,7 @@ class UscopeScene():
     """
 
     # Class parameters
-    width: int = 2; height: int = 2; __warn_message: str = ""; max_pixel_value = 255; img_type = np.uint8
+    width: int = 4; height: int = 4; __warn_message: str = ""; max_pixel_value = 255; img_type = np.uint8
     acceptable_img_types: list = ['uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64]
     max_pixel_value_uint8: int = 255; max_pixel_value_uint16: int = 65535
 
@@ -67,8 +67,8 @@ class UscopeScene():
 
         """
         # Check provided width and height
-        if width < 2 or height < 2:
-            raise ValueError(f"Provided dimensions ({width}x{height}) is less than 2")
+        if width < 3 or height < 3:
+            raise ValueError(f"Provided dimensions ({width}x{height}) is less than 3")
         if width > 10000 or height > 10000:
             __warn_message = f"Provided dimensions ({width}x{height}) pixels are unrealistic for the common image"
             warnings.warn(__warn_message)
@@ -83,6 +83,16 @@ class UscopeScene():
                 self.max_pixel_value = 1.0; self.img_type = np.float64
         # Initialize zero scene
         self.image = np.zeros(shape=(height, width), dtype=self.img_type)
+
+    # %% Objects specification / generation
+    @staticmethod
+    def set_objects_props(mean_size: Union[float, int, tuple], n_objects: int = 2):
+        pass
+
+    # %% Put objects on the scene
+    def put_objects_on(self, fluo_objects: tuple = ()):
+        if len(fluo_objects) > 0:
+            pass
 
     # %% Scene manipulation
     def show_scene(self, str_id: str = ""):
@@ -135,11 +145,14 @@ class FluorObj():
     __acceptable_border_types: list = ['precise', 'pr', 'computed', 'co']; radius: float = 0.0; a: float = 0.0; b: float = 0.0
     typical_sizes: tuple = ()  # for storing descriptive parameters for curve describing the shape of the object
     # below - storing names of implemented computing functions for the define continuous shape
-    __acceptable_shape_methods = ['gaussian', 'g', 'lorentzian', 'lor', 'derivative of logistic func.', 'dlogf', 'bump square', 'bump2',
-                                  'bump cube', 'bump3', 'bump ^8', 'bump8', 'smooth circle', 'smcir', 'oversampled circle', 'ovcir',
-                                  'undersampled circle', 'uncir']
+    __acceptable_shape_methods = ['gaussian', 'g', 'lorentzian', 'lor', 'derivative of logistic func.', 'dlogf', 'bump square', 'bump2', 'bump cube',
+                                  'bump3', 'bump ^8', 'bump8', 'smooth circle', 'smcir', 'oversampled circle', 'ovcir', 'undersampled circle', 'uncir']
     image_type = None; center_shifts: tuple = (0.0, 0.0)   # subpixel shift of the center of the object
     casted_profile: np.ndarray = None  # casted normalized profile to the provided image type
+    __profile_croped: bool = False  # flag for setting if the profile was cropped (zero pixel rows / columns removed)
+    __external_upper_coordinates: tuple = (0, 0)  # external image coordinates of the upper left pixel
+    __external_image_sizes: tuple = (0, 0)   # sizes of an external image coordinates of the upper left pixel
+    __within_image: bool = False  # flag for checking that the profile is still within the image
 
     def __init__(self, typical_size: Union[float, int, tuple], center_shifts: tuple = (0.0, 0.0), shape_type: str = 'round',
                  border_type: str = 'precise', shape_method: str = ''):
@@ -289,7 +302,7 @@ class FluorObj():
             raise NotImplementedError("This set of input parameters hasn't yet been implemented")
 
     def get_casted_shape(self, max_pixel_value: Union[int, float],
-                         image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') ->  Union[np.ndarray, None]:
+                         image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') -> Union[np.ndarray, None]:
         """
         Calculate casted from the computed normalized object shape.
 
@@ -340,6 +353,7 @@ class FluorObj():
             2D cropped profile.
 
         """
+        self.__profile_croped = False  # set it to the default value
         if self.profile is not None:
             m, n = self.profile.shape; i_start = 0; j_start = 0; i_end = m; j_end = n; border_found = False
             for i in range(m):
@@ -364,6 +378,8 @@ class FluorObj():
                     else:
                         j_end = j; break
             self.profile = self.profile[i_start+1:i_end, j_start+1:j_end]
+            if i_start > 0 or j_start > 0 or i_end < m or j_end < n:
+                self.__profile_croped = True
         return self.profile
 
     # %% Plotting methods
@@ -384,7 +400,11 @@ class FluorObj():
         if not plt.isinteractive():
             plt.ion()
         if self.profile is not None:
-            plt.figure(f"Shape with parameters: {self.explicit_shape_name}, {self.border_type}, center: {self.center_shifts} {str_id}")
+            if self.__profile_croped:
+                naming = "Cropped Shape"
+            else:
+                naming = "Shape"
+            plt.figure(f"{naming} with parameters: {self.explicit_shape_name}, {self.border_type}, center: {self.center_shifts} {str_id}")
             axes_img = plt.imshow(self.profile, cmap=plt.cm.viridis, origin='upper'); plt.axis('off'); plt.colorbar(); plt.tight_layout()
             m_center, n_center = self.profile.shape
             if self.center_shifts[0] >= 0.0:
@@ -430,11 +450,20 @@ class FluorObj():
             plt.figure(f"Casted shape with parameters: {self.explicit_shape_name}, {self.border_type}, center: {self.center_shifts} {str_id}")
             plt.imshow(self.casted_profile, cmap='gray', origin='upper'); plt.axis('off'); plt.colorbar(); plt.tight_layout()
 
+    # %% Containing checks
+    def set_image_sizes(self, image_sizes: tuple):
+        h, w = image_sizes  # expecting packed height, width - also can be called with image.shape (np.ndarray.shape) attribute
+        if h > 2 and w > 2:
+            self.__external_image_size = (h, w)
+        else:
+            raise ValueError("Height and width image is expected to be more than 2 pixels")
+
 
 # %% Some tests
 if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
-    test_presice_shifted_beads = True; test_ellipse_centered = True; test_ellipse_shifted = True; shifts = (-0.69, 0.44)
+    test_presice_shifted_beads = True; test_ellipse_centered = True; test_ellipse_shifted = True; test_casting = False
+    test_put_objects = True; shifts = (-0.69, 0.44)
 
     # Testing the scene generation with a few objects
     # scene = UscopeScene(width=145, height=123); scene.show_scene()
@@ -465,10 +494,15 @@ if __name__ == "__main__":
         gb10 = FluorObj(typical_size=2.0, border_type='co', shape_method='uncir', center_shifts=shifts); gb10.get_shape(); gb10.plot_shape()
     if test_presice_shifted_beads:
         gb8 = FluorObj(typical_size=2.0, center_shifts=shifts); gb8.get_shape(); gb8.crop_shape(); gb8.plot_shape()
-        gb8.get_casted_shape(255, 'uint8'); gb8.plot_casted_shape()
+        if test_casting:
+            gb8.get_casted_shape(255, 'uint8'); gb8.plot_casted_shape()
     if test_ellipse_centered:
         gb11 = FluorObj(shape_type='ellipse', typical_size=(4.4, 2.5, np.pi/3)); gb11.get_shape(); gb11.plot_shape()
-        gb11.get_casted_shape(255, 'uint8'); gb11.plot_casted_shape()
+        if test_casting:
+            gb11.get_casted_shape(255, 'uint8'); gb11.plot_casted_shape()
     if test_ellipse_shifted:
         gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(shifts); gb12.crop_shape(); gb12.plot_shape()
-        gb12.get_casted_shape(255, 'uint8'); gb12.plot_casted_shape()
+        if test_casting:
+            gb12.get_casted_shape(255, 'uint8'); gb12.plot_casted_shape()
+    if test_put_objects:
+        pass
