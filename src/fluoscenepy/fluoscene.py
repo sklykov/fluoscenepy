@@ -41,7 +41,7 @@ class UscopeScene():
     # Class parameters
     width: int = 4; height: int = 4; __warn_message: str = ""; max_pixel_value = 255; img_type = np.uint8
     acceptable_img_types: list = ['uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64]
-    max_pixel_value_uint8: int = 255; max_pixel_value_uint16: int = 65535
+    max_pixel_value_uint8: int = 255; max_pixel_value_uint16: int = 65535; shape: tuple = (height, width)
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8'):
         """
@@ -82,7 +82,7 @@ class UscopeScene():
             elif image_type == 'float' or image_type is np.float64:
                 self.max_pixel_value = 1.0; self.img_type = np.float64
         # Initialize zero scene
-        self.image = np.zeros(shape=(height, width), dtype=self.img_type)
+        self.image = np.zeros(shape=(height, width), dtype=self.img_type); self.shape = (self.height, self.width)
 
     # %% Objects specification / generation
     @staticmethod
@@ -92,7 +92,26 @@ class UscopeScene():
     # %% Put objects on the scene
     def put_objects_on(self, fluo_objects: tuple = ()):
         if len(fluo_objects) > 0:
-            pass
+            self.clear_scene()  # clear before placing the objects
+            for fluo_obj in fluo_objects:
+                if fluo_obj.within_image and fluo_obj.casted_profile is not None:
+                    i_start, j_start = fluo_obj.external_upper_coordinates; i_size, j_size = fluo_obj.casted_profile.shape
+                    k = 0; m = 0  # for counting on the profile
+                    for i in range(i_start, i_start+i_size):
+                        m = 0
+                        for j in range(j_start, j_start+j_size):
+                            if self.img_type == np.uint8 or self.img_type == np.uint16:
+                                if self.image[i, j] == 0:
+                                    self.image[i, j] = fluo_obj.casted_profile[k, m]
+                                else:
+                                    self.image[i, j] = max(self.image[i, j], fluo_obj.casted_profile[k, m])
+                            else:  # float image type
+                                if self.image[i, j] < 1E-9:
+                                    self.image[i, j] = fluo_obj.casted_profile[k, m]
+                                else:
+                                    self.image[i, j] = max(self.image[i, j], fluo_obj.casted_profile[k, m])
+                            m += 1  # next column of the casted profile
+                        k += 1  # next row of the casted profile
 
     # %% Scene manipulation
     def show_scene(self, str_id: str = ""):
@@ -109,8 +128,7 @@ class UscopeScene():
         None.
 
         """
-        plt.close('all'); h, w = self.image.shape
-        height_width_ratio = h/w; default_image_size = 5.8
+        h, w = self.image.shape; height_width_ratio = h/w; default_image_size = 5.8
         if len(str_id) == 0:
             str_id = str(random.randint(1, 100))
         if not plt.isinteractive():
@@ -150,9 +168,9 @@ class FluorObj():
     image_type = None; center_shifts: tuple = (0.0, 0.0)   # subpixel shift of the center of the object
     casted_profile: np.ndarray = None  # casted normalized profile to the provided image type
     __profile_croped: bool = False  # flag for setting if the profile was cropped (zero pixel rows / columns removed)
-    __external_upper_coordinates: tuple = (0, 0)  # external image coordinates of the upper left pixel
+    external_upper_coordinates: tuple = (0, 0)  # external image coordinates of the upper left pixel
     __external_image_sizes: tuple = (0, 0)   # sizes of an external image coordinates of the upper left pixel
-    __within_image: bool = False  # flag for checking that the profile is still within the image
+    within_image: bool = False  # flag for checking that the profile is still within the image
 
     def __init__(self, typical_size: Union[float, int, tuple], center_shifts: tuple = (0.0, 0.0), shape_type: str = 'round',
                  border_type: str = 'precise', shape_method: str = ''):
@@ -450,23 +468,62 @@ class FluorObj():
             plt.figure(f"Casted shape with parameters: {self.explicit_shape_name}, {self.border_type}, center: {self.center_shifts} {str_id}")
             plt.imshow(self.casted_profile, cmap='gray', origin='upper'); plt.axis('off'); plt.colorbar(); plt.tight_layout()
 
-    # %% Containing checks
+    # %% Containing within the image checks
     def set_image_sizes(self, image_sizes: tuple):
+        """
+        Set containing this object image sizes packed in the tuple.
+
+        Parameters
+        ----------
+        image_sizes : tuple
+            Expected as (height, width).
+
+        Raises
+        ------
+        ValueError
+            If image sizes provided less than 2 pixels.
+
+        Returns
+        -------
+        None.
+
+        """
         h, w = image_sizes  # expecting packed height, width - also can be called with image.shape (np.ndarray.shape) attribute
         if h > 2 and w > 2:
             self.__external_image_size = (h, w)
         else:
+            self.__external_image_size = (0, 0)  # put the default sizes for always getting False after setting coordinates
             raise ValueError("Height and width image is expected to be more than 2 pixels")
+
+    def set_coordinates(self, coordinates: tuple) -> bool:
+        """
+        Set coordinates of the left upper coordinates of the profile.
+
+        Parameters
+        ----------
+        coordinates : tuple
+            As i - from rows, j - columns.
+
+        Returns
+        -------
+        bool
+            True if the image containing the profile (even partially).
+
+        """
+        i, j = coordinates; self.external_upper_coordinates = coordinates  # expecting packed coordinates of the left upper pixel of the profile
+        if self.profile is not None:
+            h, w = self.profile.shape; h_image, w_image = self.__external_image_size
+            self.within_image = (0 <= i + h < h_image and 0 <= j + w < w_image)
+        else:
+            self.within_image = False  # explicit setting flag
+        return self.within_image
 
 
 # %% Some tests
 if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
-    test_presice_shifted_beads = True; test_ellipse_centered = True; test_ellipse_shifted = True; test_casting = False
+    test_presice_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
     test_put_objects = True; shifts = (-0.69, 0.44)
-
-    # Testing the scene generation with a few objects
-    # scene = UscopeScene(width=145, height=123); scene.show_scene()
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -505,4 +562,8 @@ if __name__ == "__main__":
         if test_casting:
             gb12.get_casted_shape(255, 'uint8'); gb12.plot_casted_shape()
     if test_put_objects:
-        pass
+        scene = UscopeScene(width=18, height=16); gb8 = FluorObj(typical_size=2.0, center_shifts=shifts); gb8.get_shape()
+        gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(); gb12.get_casted_shape(max_pixel_value=255)
+        gb8.get_casted_shape(max_pixel_value=254); gb8.crop_shape(); gb12.crop_shape(); # gb8.plot_shape(); gb12.plot_shape()
+        gb8.set_image_sizes(scene.shape); gb12.set_image_sizes(scene.shape); gb8.set_coordinates((1, 2)); gb12.set_coordinates((7, 8))
+        scene.put_objects_on((gb8, gb12)); scene.show_scene()
