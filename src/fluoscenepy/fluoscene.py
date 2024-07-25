@@ -126,6 +126,10 @@ class UscopeScene():
                 fl_objects.append(fl_object)
         return tuple(fl_objects)
 
+    def set_random_places(self, fluo_objects: tuple = ()):
+        if len(fluo_objects) > 0:
+            pass
+
     # %% Put objects on the scene
     def put_objects_on(self, fluo_objects: tuple = (), save_objects: bool = False, rewrite_objects: bool = False):
         if len(fluo_objects) > 0:
@@ -467,24 +471,17 @@ class FluorObj():
                 naming = "Shape"
             plt.figure(f"{naming} with parameters: {self.explicit_shape_name}, {self.border_type}, center: {self.center_shifts} {str_id}")
             axes_img = plt.imshow(self.profile, cmap=plt.cm.viridis, origin='upper'); plt.axis('off'); plt.colorbar(); plt.tight_layout()
-            plot_patch = True
+            plot_patch = True  # flag for plotting the patch (Circle or Ellipse)
             if not self.__profile_croped:
-                m_center, n_center = self.profile.shape
-                if self.center_shifts[0] >= 0.0:
-                    m_center = m_center // 2 + self.center_shifts[0]
-                else:
-                    if self.shape_type == "round" or self.shape_type == "r":
-                        m_center = m_center // 2 + self.center_shifts[0] + 1.0
-                    else:
-                        m_center = m_center // 2 + self.center_shifts[0]
-                if self.center_shifts[1] >= 0.0:
-                    n_center = n_center // 2 + self.center_shifts[1]
-                else:
-                    if self.shape_type == "round" or self.shape_type == "r":
-                        n_center = n_center // 2 + self.center_shifts[1] + 1.0
-                    else:
-                        n_center = n_center // 2 + self.center_shifts[1]
+                m_center, n_center = self.profile.shape  # image sizes
+                m_center = m_center // 2 + self.center_shifts[0]; n_center = n_center // 2 + self.center_shifts[1]
+                if self.center_shifts[0] < 0.0 and (self.shape_type == "round" or self.shape_type == "r"):
+                    m_center = m_center // 2 + self.center_shifts[0] + 1.0
+                if self.center_shifts[1] < 0.0 and (self.shape_type == "round" or self.shape_type == "r"):
+                    n_center = n_center // 2 + self.center_shifts[1] + 1.0
             else:
+                if self.shape_type == "ellipse" or self.shape_type == "el":
+                    plot_patch = False
                 m_center, n_center = self.profile.shape; m_center = m_center // 2; n_center = n_center // 2
                 if 0.0 < self.center_shifts[0] <= 0.5 or -0.5 <= self.center_shifts[0] < 0.0:
                     m_center += self.center_shifts[0]
@@ -579,7 +576,7 @@ class FluorObj():
 if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_presice_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
-    test_put_objects = False; test_generate_objects = True; shifts = (-0.69, 0.44)
+    test_cropped_shapes = False; test_put_objects = False; test_generate_objects = True; shifts = (-0.2, 0.44)
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -617,6 +614,8 @@ if __name__ == "__main__":
         gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(shifts); gb12.crop_shape(); gb12.plot_shape()
         if test_casting:
             gb12.get_casted_shape(255, 'uint8'); gb12.plot_casted_shape()
+    if test_cropped_shapes:
+        gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(shifts); gb12.plot_shape()
     if test_put_objects:
         scene = UscopeScene(width=18, height=16); gb8 = FluorObj(typical_size=2.0, center_shifts=shifts); gb8.get_shape()
         gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(); gb12.get_casted_shape(max_pixel_value=255)
@@ -624,6 +623,6 @@ if __name__ == "__main__":
         gb8.set_image_sizes(scene.shape); gb12.set_image_sizes(scene.shape); gb8.set_coordinates((1, 2)); gb12.set_coordinates((7, 8))
         scene.put_objects_on((gb8, gb12)); scene.show_scene()
     if test_generate_objects:
-        objs = UscopeScene.get_random_objects(mean_size=3, size_std=1, shapes='r', intensity_range=(230, 252), n_objects=2)
+        objs = UscopeScene.get_random_objects(mean_size=3, size_std=0, shapes='r', intensity_range=(230, 252), n_objects=2)
         # objs[0].plot_casted_shape(); objs[1].plot_casted_shape()
         objs[0].plot_shape(); objs[1].plot_shape()
