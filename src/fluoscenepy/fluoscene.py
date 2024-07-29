@@ -43,6 +43,7 @@ class UscopeScene():
     acceptable_img_types: list = ['uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64]
     max_pixel_value_uint8: int = 255; max_pixel_value_uint16: int = 65535; shape: tuple = (height, width)
     fluo_objects: list = []; shape_types = ['mixed', 'round', 'r', 'ellipse', 'el']
+    __image_cleared: bool = True  # for tracking that the scene was cleared (zeroed)
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8'):
         """
@@ -83,12 +84,43 @@ class UscopeScene():
             elif image_type == 'float' or image_type is np.float64:
                 self.max_pixel_value = 1.0; self.img_type = np.float64
         # Initialize zero scene
-        self.image = np.zeros(shape=(height, width), dtype=self.img_type); self.shape = (self.height, self.width)
+        self.image = np.zeros(shape=(height, width), dtype=self.img_type); self.shape = (self.height, self.width); self.__image_cleared = True
 
     # %% Objects specification / generation
     @classmethod
     def get_random_objects(cls, mean_size: Union[float, int, tuple], size_std: Union[float, int, tuple], intensity_range: tuple, n_objects: int = 2,
                            shapes: str = 'round', image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') -> tuple:
+        """
+        Generate objects with randomized shape sizes, for shapes: 'round', 'ellipse', 'mixed' - last one for randomized choice between 2 first ones.
+
+        Objects are instances of FluorObj() class from this module.
+
+        Parameters
+        ----------
+        mean_size : Union[float, int, tuple]
+            Mean size(-s) of randomized objects. Integer or float is supposed to be used for round particles, tuple - for ellipse.
+        size_std : Union[float, int, tuple]
+            Standard deviation of mean size(-s).
+        intensity_range : tuple
+            (Min, Max) intensities for randomized choise of the maximum intensity along the profile.
+        n_objects : int, optional
+            Number of generated objects. The default is 2.
+        shapes : str, optional
+            Implemented in FluorObj() shapes: 'round', 'ellipse', 'mixed' of them. The default is 'round'.
+        image_type : Union[str, np.uint8, np.uint16, np.float64], optional
+            Image type of the scene on which the objects will be placed and casted to. The default is 'uint8'.
+
+        Raises
+        ------
+        ValueError
+            See the provided description.
+
+        Returns
+        -------
+        tuple
+            Packed instances of FluorObj() class.
+
+        """
         if shapes not in cls.shape_types:
             raise ValueError(f"Please provide the supported shape type for generation from a list: {cls.shape_types}")
         fl_objects = []  # for storing generated objects
@@ -97,60 +129,123 @@ class UscopeScene():
         for i in range(n_objects):
             if shapes == 'mixed':
                 shape_type = random.choice(['round', 'ellipse'])
-                # Define radius and radius std for round particles from the provided tuples for the ellipses
+                # Define radius and radius std for round particles from the provided tuples for the ellipses (random choice between a and b)
                 if isinstance(mean_size, tuple):
                     r = random.choice(mean_size)
                 else:
                     r = mean_size
-                if isinstance(sizes_std, tuple):
+                if isinstance(size_std, tuple):
                     r_std = random.choice(size_std)
                 else:
                     r_std = size_std
             else:
                 shape_type = shapes
+            # Random selection of central shifts for placement
+            i_shift = round(random.random(), 3); j_shift = round(random.random(), 3)  # random generation of central pixel shifts
+            # Checking that shifts are generated in the subpixel range and correcting it if not
+            if i_shift >= 1.0:
+                i_shift -= round(random.random(), 3)*0.25
+            if j_shift >= 1.0:
+                j_shift -= round(random.random(), 3)*0.25
+            sign_i = random.choice([-1.0, 1.0]); sign_j = random.choice([-1.0, 1.0]); i_shift *= sign_i; j_shift *= sign_j  # random signs
+            # Random selection of max intensity for the profile casting
+            if isinstance(min_intensity, int) and isinstance(max_intensity, int):
+                fl_intensity = random.randrange(min_intensity, max_intensity, 1)
+            elif isinstance(min_intensity, float) and isinstance(max_intensity, float):
+                fl_intensity = random.uniform(a=min_intensity, b=max_intensity)
             # Round shaped object generation
             if shape_type == 'round' or shape_type == 'r':
                 if r is not None and r_std is not None:
                     radius = random.gauss(mu=r, sigma=r_std)
                 else:
+                    if isinstance(mean_size, tuple) or isinstance(size_std, tuple):
+                        raise ValueError("Provided tuple with sizes for round shape object, there expected only single number size")
                     radius = random.gauss(mu=mean_size, sigma=size_std)
-                i_shift = round(random.random(), 3); j_shift = round(random.random(), 3)  # random generation of central pixel shifts
-                sign_i = random.choice([-1.0, 1.0]); sign_j = random.choice([-1.0, 1.0]); i_shift *= sign_i; j_shift *= sign_j  # random signs
+                # Checking generated radius for consistency
+                if radius < 0.5:
+                    radius += random.uniform(a=0.6-radius, b=0.6)
                 fl_object = FluorObj(typical_size=radius, center_shifts=(i_shift, j_shift)); fl_object.get_shape(); fl_object.crop_shape()
-                # Random selection of max intensity for the profile casting
-                if isinstance(min_intensity, int) and isinstance(max_intensity, int):
-                    fl_intensity = random.randrange(min_intensity, max_intensity, 1)
-                elif isinstance(min_intensity, float) and isinstance(max_intensity, float):
-                    fl_intensity = random.uniform(a=min_intensity, b=max_intensity)
-                fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type)
-                fl_objects.append(fl_object)
+                fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
+            # Ellipse shaped object generation
+            elif shape_type == 'ellipse' or shape_type == 'el':
+                a, b = mean_size; a_std, b_std = size_std  # unpacking tuples assuming 2 of sizes packed there
+                a_r = random.gauss(mu=a, sigma=a_std); b_r = random.gauss(mu=b, sigma=b_std)
+                angle = random.uniform(a=0.0, b=2.0*np.pi)  # get random orientation for an ellipse
+                # Checking generated a, b axes for consistency (min axis >= 0.5, max axis >= 1.0)
+                if a < 0.5:
+                    a += random.uniform(0.6-a, 0.6)
+                elif b < 0.5:
+                    b += random.uniform(0.6-b, 0.6)
+                max_axis = max(a, b)
+                if max_axis < 1.0:
+                    if a == max_axis:
+                        a += random.uniform(1.1-a, 1.1)
+                    else:
+                        b += random.uniform(1.1-b, 1.1)
+                fl_object = FluorObj(typical_size=(a_r, b_r, angle), center_shifts=(i_shift, j_shift), shape_type='ellipse')
+                fl_object.get_shape(); fl_object.crop_shape()  # calculate normalized shape and crop it
+                fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
         return tuple(fl_objects)
 
-    def set_random_places(self, fluo_objects: tuple = ()):
+    def set_random_places(self, fluo_objects: tuple = (), not_overlapping: bool = True) -> tuple:
+        # TODO: implement not_overlapping generation logic
         if len(fluo_objects) > 0:
-            pass
+            h, w = self.image.shape  # height and width of the image for setting the range of coordinates random selection
+            for fluo_obj in fluo_objects:
+                if fluo_obj.profile is not None:
+                    h_fl_obj, w_fl_obj = fluo_obj.profile.shape  # get object sizes
+                    fluo_obj.set_image_sizes(self.image.shape)  # force to account for the used scene shape
+                    i_smallest = -(h_fl_obj // 2); j_smallest = -(w_fl_obj // 2)  # smallest placing coordinate = half of object sizes
+                    i_largest = h - h_fl_obj // 2 - 1; j_largest = w - w_fl_obj // 2 - 1
+                    i = random.randrange(i_smallest, i_largest, 1); j = random.randrange(j_smallest, j_largest, 1)
+                    fluo_obj.set_coordinates((i, j))  # set random place of the object within the image
+        return fluo_objects
 
     # %% Put objects on the scene
-    def put_objects_on(self, fluo_objects: tuple = (), save_objects: bool = False, rewrite_objects: bool = False):
+    def put_objects_on(self, fluo_objects: tuple = (), save_objects: bool = True, rewrite_objects: bool = False):
+        """
+        Put the provided objects on the scene by checking pixelwise the provided profiles and in the case of intersection of
+        two objects profiles, selecting the maximum intensity from them.
+
+        Parameters
+        ----------
+        fluo_objects : tuple, optional
+            Fluorescent objects, instances of FluorObj class, packed in a tuple. The default is ().
+        save_objects : bool, optional
+            If True, will save (append) objects in the class attribute 'fluo_objects'. The default is True. \n
+            Note that, if it's False, then before placing the objects, the scene will be cleared (stored before objects will be removed from it).
+        rewrite_objects : bool, optional
+            If True, it forces to substitute stored objects in the class attribute 'fluo_objects' with the provided ones. The default is False.
+
+        Returns
+        -------
+        None.
+
+        """
         if len(fluo_objects) > 0:
-            self.clear_scene()  # clear the scene before placing the objects
+            if len(self.fluo_objects) == 0 or not save_objects:
+                self.clear_scene()  # clear the scene before placing the objects only if there are no saved objects and objects provided not for saving
             for fluo_obj in fluo_objects:
                 if fluo_obj.within_image and fluo_obj.casted_profile is not None:
                     i_start, j_start = fluo_obj.external_upper_coordinates; i_size, j_size = fluo_obj.casted_profile.shape
+                    h, w = self.image.shape  # for checking that the placing happening within the image
                     k = 0; m = 0  # for counting on the profile
                     for i in range(i_start, i_start+i_size):
-                        m = 0
+                        m = 0  # refresh starting column for counting on the object profile
                         for j in range(j_start, j_start+j_size):
-                            if self.img_type == np.uint8 or self.img_type == np.uint16:
-                                if self.image[i, j] == 0:
-                                    self.image[i, j] = fluo_obj.casted_profile[k, m]
-                                else:
-                                    self.image[i, j] = max(self.image[i, j], fluo_obj.casted_profile[k, m])
-                            else:  # float image type
-                                if self.image[i, j] < 1E-9:
-                                    self.image[i, j] = fluo_obj.casted_profile[k, m]
-                                else:
-                                    self.image[i, j] = max(self.image[i, j], fluo_obj.casted_profile[k, m])
+                            if 0 <= i < h and 0 <= j < w:
+                                if self.img_type == np.uint8 or self.img_type == np.uint16:
+                                    if self.image[i, j] == 0:
+                                        self.image[i, j] = fluo_obj.casted_profile[k, m]
+                                    else:
+                                        self.image[i, j] = max(self.image[i, j], fluo_obj.casted_profile[k, m])
+                                else:  # float image type
+                                    if self.image[i, j] < 1E-9:
+                                        self.image[i, j] = fluo_obj.casted_profile[k, m]
+                                    else:
+                                        self.image[i, j] = max(self.image[i, j], fluo_obj.casted_profile[k, m])
+                                if self.__image_cleared:
+                                    self.__image_cleared = False
                             m += 1  # next column of the casted profile
                         k += 1  # next row of the casted profile
             if save_objects:
@@ -160,13 +255,37 @@ class UscopeScene():
                 else:
                     self.fluo_objects = l_fluo_objects[:]  # copy the list
 
+    def spread_objects_on(self, fluo_objects: tuple):
+        """
+        Compose 2 subsequent methods: self.put_objects_on(slef.set_random_places(fluo_objects), save_objects=True).
+
+        So, this method puts the provided objects, which are randomly spread on the scene, and saves them in the attribute.
+
+        Parameters
+        ----------
+        fluo_objects : tuple
+            Fluorescent objects, instances of FluorObj class, packed in a tuple.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.put_objects_on(fluo_objects=self.set_random_places(fluo_objects))
+
+    def recreate_scene(self):
+        if len(self.fluo_objects) > 0:
+            pass
+
     # %% Scene manipulation
-    def show_scene(self, str_id: str = ""):
+    def show_scene(self, color_map='viridis', str_id: str = ""):
         """
         Show interactively the stored in the class scene (image) by plotting it using matplotlib.
 
         Parameters
         ----------
+        color_map
+            Color map acceptable by matplotlib.pyplot.cm. Fallback is viridis color map. The default is 'viridis'.
         str_id : str, optional
             Unique string id for plotting several plots with unique Figure() names. The default is "".
 
@@ -180,8 +299,16 @@ class UscopeScene():
             str_id = str(random.randint(1, 100))
         if not plt.isinteractive():
             plt.ion()
-        plt.figure("UscopeScene_"+str_id, figsize=(default_image_size, default_image_size*height_width_ratio))
-        plt.imshow(self.image, cmap=plt.cm.viridis, origin='upper'); plt.axis('off'); plt.tight_layout()
+        if self.__image_cleared:
+            figure_name = "Blank UscopeScene " + str_id
+        else:
+            figure_name = "UscopeScene " + str_id
+        plt.figure(figure_name, figsize=(default_image_size, default_image_size*height_width_ratio))
+        try:
+            plt.imshow(self.image, cmap=color_map, origin='upper')
+        except ValueError:
+            plt.imshow(self.image, cmap=plt.cm.viridis, origin='upper')
+        plt.axis('off'); plt.tight_layout()
 
     def clear_scene(self):
         """
@@ -192,7 +319,19 @@ class UscopeScene():
         None.
 
         """
-        self.image = np.zeros(shape=(self.height, self.width), dtype=self.img_type)
+        self.image = np.zeros(shape=(self.height, self.width), dtype=self.img_type); self.__image_cleared = True
+
+    def is_blank(self) -> bool:
+        """
+        Returns True, if the scene (image) is blank (zeroed).
+
+        Returns
+        -------
+        bool
+            Value for designation of a blank scene.
+
+        """
+        return self.__image_cleared
 
 
 # %% Object class definition
@@ -443,6 +582,8 @@ class FluorObj():
                     else:
                         j_end = j; break
             self.profile = self.profile[i_start+1:i_end, j_start+1:j_end]
+            if self.casted_profile is not None:
+                self.casted_profile = self.casted_profile[i_start+1:i_end, j_start+1:j_end]
             if i_start > 0 or j_start > 0 or i_end < m or j_end < n:
                 self.__profile_croped = True
         return self.profile
@@ -451,6 +592,8 @@ class FluorObj():
     def plot_shape(self, str_id: str = ""):
         """
         Plot interactively the profile of the object computed by the get_shape() method along with the border of the object.
+
+        Please note that the border will be plotted if the the shape hadn't been cropped or in some cases if it had.
 
         Parameters
         ----------
@@ -543,9 +686,9 @@ class FluorObj():
         """
         h, w = image_sizes  # expecting packed height, width - also can be called with image.shape (np.ndarray.shape) attribute
         if h > 2 and w > 2:
-            self.__external_image_size = (h, w)
+            self.__external_image_sizes = (h, w)
         else:
-            self.__external_image_size = (0, 0)  # put the default sizes for always getting False after setting coordinates
+            self.__external_image_sizes = (0, 0)  # put the default sizes for always getting False after setting coordinates
             raise ValueError("Height and width image is expected to be more than 2 pixels")
 
     def set_coordinates(self, coordinates: tuple) -> bool:
@@ -565,8 +708,13 @@ class FluorObj():
         """
         i, j = coordinates; self.external_upper_coordinates = coordinates  # expecting packed coordinates of the left upper pixel of the profile
         if self.profile is not None:
-            h, w = self.profile.shape; h_image, w_image = self.__external_image_size
-            self.within_image = (0 <= i + h < h_image and 0 <= j + w < w_image)
+            h, w = self.profile.shape; h_image, w_image = self.__external_image_sizes
+            i_border_check = False; j_border_check = False  # flags for overall checking
+            if (i < 0 and i + h >= 0) or (i >= 0 and i < h_image):
+                i_border_check = True
+            if (j < 0 and j + w >= 0) or (j >= 0 and j < w_image):
+                j_border_check = True
+            self.within_image = (i_border_check and j_border_check)
         else:
             self.within_image = False  # explicit setting flag
         return self.within_image
@@ -576,7 +724,7 @@ class FluorObj():
 if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_presice_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
-    test_cropped_shapes = False; test_put_objects = False; test_generate_objects = True; shifts = (-0.2, 0.44)
+    test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = True; shifts = (-0.2, 0.44)
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -617,12 +765,19 @@ if __name__ == "__main__":
     if test_cropped_shapes:
         gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(shifts); gb12.plot_shape()
     if test_put_objects:
-        scene = UscopeScene(width=18, height=16); gb8 = FluorObj(typical_size=2.0, center_shifts=shifts); gb8.get_shape()
-        gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(); gb12.get_casted_shape(max_pixel_value=255)
+        scene = UscopeScene(width=24, height=21); gb8 = FluorObj(typical_size=2.78, center_shifts=shifts); gb8.get_shape()
+        gb12 = FluorObj(shape_type='el', typical_size=(4.9, 2.8, np.pi/3)); gb12.get_shape(); gb12.get_casted_shape(max_pixel_value=255)
         gb8.get_casted_shape(max_pixel_value=254); gb8.crop_shape(); gb12.crop_shape()  # gb8.plot_shape(); gb12.plot_shape()
-        gb8.set_image_sizes(scene.shape); gb12.set_image_sizes(scene.shape); gb8.set_coordinates((1, 2)); gb12.set_coordinates((7, 8))
-        scene.put_objects_on((gb8, gb12)); scene.show_scene()
+        gb8.set_image_sizes(scene.shape); gb12.set_image_sizes(scene.shape); gb8.set_coordinates((-1, 3)); gb12.set_coordinates((12, 5))
+        gb9 = FluorObj(typical_size=3.0, center_shifts=(0.25, -0.1)); gb9.get_shape(); gb9.get_casted_shape(max_pixel_value=251)
+        gb9.crop_shape(); gb9.set_image_sizes(scene.shape); gb9.set_coordinates((10, 18))
+        scene.put_objects_on(fluo_objects=(gb8, gb12)); scene.put_objects_on(fluo_objects=(gb9, )); scene.show_scene()
     if test_generate_objects:
-        objs = UscopeScene.get_random_objects(mean_size=3, size_std=0, shapes='r', intensity_range=(230, 252), n_objects=2)
-        # objs[0].plot_casted_shape(); objs[1].plot_casted_shape()
-        objs[0].plot_shape(); objs[1].plot_shape()
+        objs = UscopeScene.get_random_objects(mean_size=4.2, size_std=1.5, shapes='r', intensity_range=(230, 252), n_objects=2)
+        objs2 = UscopeScene.get_random_objects(mean_size=(7.3, 5), size_std=(2, 1.19), shapes='el', intensity_range=(220, 250), n_objects=2)
+        scene = UscopeScene(width=45, height=38); objs = scene.set_random_places(objs); objs2 = scene.set_random_places(objs2)
+        scene.put_objects_on(objs); scene.put_objects_on(objs2, save_objects=False); scene.show_scene()
+        # scene2 = UscopeScene(width=55, height=46); scene2.show_scene()  # will show 'Blank' image
+    if test_overall_gen:
+        objs3 = UscopeScene.get_random_objects(mean_size=(8.3, 5.4), size_std=(2, 1.19), shapes='mixed', intensity_range=(182, 250), n_objects=5)
+        scene = UscopeScene(width=55, height=46); scene.spread_objects_on(objs3); scene.show_scene(color_map='gray')
