@@ -15,6 +15,7 @@ from typing import Union
 import random
 from pathlib import Path
 from matplotlib.patches import Circle, Ellipse
+import time
 
 # %% Local (package-scoped) imports
 if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
@@ -44,6 +45,7 @@ class UscopeScene():
     max_pixel_value_uint8: int = 255; max_pixel_value_uint16: int = 65535; shape: tuple = (height, width)
     fluo_objects: list = []; shape_types = ['mixed', 'round', 'r', 'ellipse', 'el']
     __image_cleared: bool = True  # for tracking that the scene was cleared (zeroed)
+    __available_coordinates = []; __binary_placement_mask = None
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8'):
         """
@@ -88,8 +90,9 @@ class UscopeScene():
 
     # %% Objects specification / generation
     @classmethod
-    def get_random_objects(cls, mean_size: Union[float, int, tuple], size_std: Union[float, int, tuple], intensity_range: tuple, n_objects: int = 2,
-                           shapes: str = 'round', image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') -> tuple:
+    def get_random_objects(cls, mean_size: Union[float, int, tuple], size_std: Union[float, int, tuple], intensity_range: tuple,
+                           n_objects: int = 2, shapes: str = 'round', image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
+                           verbose_info: bool = False) -> tuple:
         """
         Generate objects with randomized shape sizes, for shapes: 'round', 'ellipse', 'mixed' - last one for randomized choice between 2 first ones.
 
@@ -109,6 +112,8 @@ class UscopeScene():
             Implemented in FluorObj() shapes: 'round', 'ellipse', 'mixed' of them. The default is 'round'.
         image_type : Union[str, np.uint8, np.uint16, np.float64], optional
             Image type of the scene on which the objects will be placed and casted to. The default is 'uint8'.
+        verbose_info : bool, optional
+            Flag for printing out verbose information about the generation progress (use it for many objects generation). The default is False.
 
         Raises
         ------
@@ -121,12 +126,16 @@ class UscopeScene():
             Packed instances of FluorObj() class.
 
         """
+        if verbose_info:
+            t_ov_1 = time.perf_counter()
         if shapes not in cls.shape_types:
             raise ValueError(f"Please provide the supported shape type for generation from a list: {cls.shape_types}")
         fl_objects = []  # for storing generated objects
         r = None; r_std = None  # default parameters for round objects
         min_intensity, max_intensity = intensity_range  # assuming that only 2 values provided
         for i in range(n_objects):
+            if verbose_info:
+                t1 = time.perf_counter()
             if shapes == 'mixed':
                 shape_type = random.choice(['round', 'ellipse'])
                 # Define radius and radius std for round particles from the provided tuples for the ellipses (random choice between a and b)
@@ -185,24 +194,112 @@ class UscopeScene():
                 fl_object = FluorObj(typical_size=(a_r, b_r, angle), center_shifts=(i_shift, j_shift), shape_type='ellipse')
                 fl_object.get_shape(); fl_object.crop_shape()  # calculate normalized shape and crop it
                 fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
+            if verbose_info:
+                elapsed_time = int(round(1000.0*(time.perf_counter() - t1), 0))
+                print(f"Generated object #{i+1} out of {n_objects}, elapsed {elapsed_time} msec", flush=True)
+        if verbose_info:
+            elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
+            if elapsed_time_ov > 1000:
+                elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)
+                print(f"Overall generation took {elapsed_time_ov} seconds", flush=True)
+            else:
+                print(f"Overall generation took {elapsed_time_ov} milliseconds", flush=True)
         return tuple(fl_objects)
 
-    def set_random_places(self, fluo_objects: tuple = (), not_overlapping: bool = True) -> tuple:
-        # TODO: implement not_overlapping generation logic
+    # %% Randomly assigning coordinates for obejcts
+    def set_random_places(self, fluo_objects: tuple = (), overlapping: bool = True, touching: bool = True,
+                          only_within_scene: bool = False) -> tuple:
         if len(fluo_objects) > 0:
             h, w = self.image.shape  # height and width of the image for setting the range of coordinates random selection
+            if not overlapping:
+                filtered_fluo_obj = []  # storing the objects in the list for excluding the not placed objects if they are not overlapped
+                additional_border = 0
+                if touching:
+                    additional_border = 1
+            # TODO: implement logic for sorting and placing the largest oject first for the last flag
+            # if only_within_scene:
+            #     fl_objs = list(fluo_objects)
+            #     fluo_objects = fl_objs.sort(reverse=True)
+            #     print(fluo_objects)
+            # Generating and set random placing coordinates of the upper left pixel for the objects
             for fluo_obj in fluo_objects:
                 if fluo_obj.profile is not None:
                     h_fl_obj, w_fl_obj = fluo_obj.profile.shape  # get object sizes
                     fluo_obj.set_image_sizes(self.image.shape)  # force to account for the used scene shape
-                    i_smallest = -(h_fl_obj // 2); j_smallest = -(w_fl_obj // 2)  # smallest placing coordinate = half of object sizes
-                    i_largest = h - h_fl_obj // 2 - 1; j_largest = w - w_fl_obj // 2 - 1
-                    i = random.randrange(i_smallest, i_largest, 1); j = random.randrange(j_smallest, j_largest, 1)
-                    fluo_obj.set_coordinates((i, j))  # set random place of the object within the image
+                    if overlapping or (not overlapping and self.__binary_placement_mask is None):
+                        # Depending on the flag, defining smallest and largest coordinates (outside the scene borders or only inside)
+                        if only_within_scene:
+                            i_smallest = 0; j_smallest = 0; i_largest = h-h_fl_obj-1; j_largest = w-w_fl_obj-1
+                        else:
+                            # smallest placing coordinate = half of object sizes - 1 pixel, analogous for largest coordinates
+                            i_smallest = -(h_fl_obj // 2) + 1; j_smallest = -(w_fl_obj // 2) + 1
+                            i_largest = (h - h_fl_obj // 2) - 2; j_largest = (w - w_fl_obj // 2) - 2
+                        i_obj = random.randrange(i_smallest, i_largest, 1); j_obj = random.randrange(j_smallest, j_largest, 1)
+                        if not overlapping:
+                            # Generate the meshgrid of all avalaible for placing coordinates
+                            self.__available_coordinates = [(i_a, j_a) for i_a in range(i_smallest, i_largest) for j_a in range(j_smallest, j_largest)]
+                            # Generate and placing objects on the binary mask (instead of the real image or scene)
+                            self.__binary_placement_mask = np.zeros(shape=self.image.shape, dtype='uint8')
+                            for i in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border):
+                                for j in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border):
+                                    if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
+                                        self.__binary_placement_mask[i, j] = 1
+                            # Exclude the coordinates occupied by the placed object from the available choises for further placements
+                            coordinates_for_del = [(i_exc, j_exc) for i_exc in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border)
+                                                   for j_exc in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border)]
+                            for del_coord in coordinates_for_del:
+                                try:
+                                    self.__available_coordinates.remove(del_coord)
+                                except ValueError:
+                                    pass
+                        fluo_obj.set_coordinates((i_obj, j_obj))  # set random place of the object within the image
+                        if not overlapping:
+                            filtered_fluo_obj.append(fluo_obj)  # storing the 1st placed and not overlapped objects
+                    else:
+                        i_attempts = 0; placed = False; available_correcting_coordinates = self.__available_coordinates[:]
+                        while (not placed or i_attempts < 10) and len(available_correcting_coordinates) > 0:
+                            overlapped = False  # flag for checking if the object for placement is overlapped with the occupied place on a binary mask
+                            i_obj, j_obj = random.choice(available_correcting_coordinates)  # randomly choose from the available coordinates
+                            for i in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border):
+                                for j in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border):
+                                    if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
+                                        if self.__binary_placement_mask[i, j] > 0:
+                                            overlapped = True; placed = False; i_attempts += 1
+                                            try:
+                                                available_correcting_coordinates.remove((i_obj, j_obj))
+                                            except ValueError:
+                                                pass
+                                            break
+                                if overlapped:
+                                    break
+                            if not overlapped:
+                                placed = True
+                            if len(available_correcting_coordinates) == 0:
+                                placed = False; break
+                        # Exclude the coordinates occupied by the placed object from the meshgrid (list with coordinates pares)
+                        if placed:
+                            coordinates_for_del = [(i_exc, j_exc) for i_exc in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border)
+                                                   for j_exc in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border)]
+                            for del_coord in coordinates_for_del:
+                                try:
+                                    self.__available_coordinates.remove(del_coord)
+                                except ValueError:
+                                    pass
+                            # Exclude placed object from binary placement mask
+                            for i in range(i_obj, i_obj+h_fl_obj):
+                                for j in range(j_obj, j_obj+w_fl_obj):
+                                    if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
+                                        self.__binary_placement_mask[i, j] = 1
+                            fluo_obj.set_coordinates((i_obj, j_obj))  # if found place, place the object
+                            filtered_fluo_obj.append(fluo_obj)
+            if not overlapping:
+                fluo_objects = tuple(filtered_fluo_obj)
+                plt.figure(); plt.imshow(self.__binary_placement_mask)
         return fluo_objects
 
     # %% Put objects on the scene
-    def put_objects_on(self, fluo_objects: tuple = (), save_objects: bool = True, rewrite_objects: bool = False):
+    def put_objects_on(self, fluo_objects: tuple = (), save_objects: bool = True, save_only_objects_inside: bool = False,
+                       rewrite_objects: bool = False):
         """
         Put the provided objects on the scene by checking pixelwise the provided profiles and in the case of intersection of
         two objects profiles, selecting the maximum intensity from them.
@@ -214,6 +311,8 @@ class UscopeScene():
         save_objects : bool, optional
             If True, will save (append) objects in the class attribute 'fluo_objects'. The default is True. \n
             Note that, if it's False, then before placing the objects, the scene will be cleared (stored before objects will be removed from it).
+        save_only_objects_inside : bool, optional
+            Save in the attribute only objects that are inside of the image. The default is False.
         rewrite_objects : bool, optional
             If True, it forces to substitute stored objects in the class attribute 'fluo_objects' with the provided ones. The default is False.
 
@@ -250,6 +349,8 @@ class UscopeScene():
                         k += 1  # next row of the casted profile
             if save_objects:
                 l_fluo_objects = list(fluo_objects)  # conversion input tuple to the list
+                if save_only_objects_inside:
+                    l_fluo_objects = [fluo_obj for fluo_obj in l_fluo_objects if fluo_obj.within_image]
                 if not rewrite_objects:
                     self.fluo_objects = self.fluo_objects + l_fluo_objects  # concatenate 2 lists
                 else:
@@ -319,7 +420,8 @@ class UscopeScene():
         None.
 
         """
-        self.image = np.zeros(shape=(self.height, self.width), dtype=self.img_type); self.__image_cleared = True
+        self.image = np.zeros(shape=(self.height, self.width), dtype=self.img_type)
+        self.__binary_placement_mask = None; self.__image_cleared = True
 
     def is_blank(self) -> bool:
         """
@@ -710,21 +812,43 @@ class FluorObj():
         if self.profile is not None:
             h, w = self.profile.shape; h_image, w_image = self.__external_image_sizes
             i_border_check = False; j_border_check = False  # flags for overall checking
-            if (i < 0 and i + h >= 0) or (i >= 0 and i < h_image):
+            # Below - basic check that the profile still is within image, if even its borders still are in
+            if (i < 0 and i + h >= 0) or (i >= 0 and i - h < h_image):
                 i_border_check = True
-            if (j < 0 and j + w >= 0) or (j >= 0 and j < w_image):
+            if (j < 0 and j + w >= 0) or (j >= 0 and j - w < w_image):
                 j_border_check = True
-            self.within_image = (i_border_check and j_border_check)
+            # Additional check that pixels of a shape is still not zero within the image (touching the scene only by border pixels)
+            if (i < 0 and j < 0) or (i > h_image and j > w_image):
+                additional_containing_check = False
+                for i_c in range(i, i+h):
+                    k = 0
+                    for j_c in range(j, j+w):
+                        m = 0
+                        if 0 <= i_c < h_image and 0 <= j_c < w_image:
+                            if self.profile[k, m] > 0.0:
+                                additional_containing_check = True; break
+                        m += 1
+                    if additional_containing_check:
+                        break
+                    k += 1
+            else:
+                additional_containing_check = True
+            self.within_image = (i_border_check and j_border_check and additional_containing_check)
         else:
             self.within_image = False  # explicit setting flag
         return self.within_image
 
+    # %% Rewritting dunder methods
+    def __lt__(self, other):
+        if self.profile is not None and other.profile is not None:
+            return self.profile.shape[0]*self.profile.shape[1] < other.profile.shape[0]*other.profile.shape[1]
 
 # %% Some tests
 if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_presice_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
-    test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = True; shifts = (-0.2, 0.44)
+    test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False;
+    test_overlapping_gen = True; shifts = (-0.2, 0.44)
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -781,3 +905,8 @@ if __name__ == "__main__":
     if test_overall_gen:
         objs3 = UscopeScene.get_random_objects(mean_size=(8.3, 5.4), size_std=(2, 1.19), shapes='mixed', intensity_range=(182, 250), n_objects=5)
         scene = UscopeScene(width=55, height=46); scene.spread_objects_on(objs3); scene.show_scene(color_map='gray')
+    if test_overlapping_gen:
+        objs4 = UscopeScene.get_random_objects(mean_size=(5.5, 4.6), size_std=(0.75, 0.65), shapes='mixed', intensity_range=(182, 250),
+                                               n_objects=5, verbose_info=True)
+        scene = UscopeScene(width=21, height=21); objs4 = scene.set_random_places(objs4, overlapping=False, touching=False, only_within_scene=True)
+        scene.put_objects_on(objs4, save_only_objects_inside=True); scene.show_scene()
