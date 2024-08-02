@@ -6,7 +6,7 @@ Main script for the 'fluoscenepy' package.
 @licence: MIT, @year: 2024
 
 """
-
+# TODO: 1) add noise to the generated scenes; 2) add tests run by pytest
 # %% Global imports
 import numpy as np
 import matplotlib.pyplot as plt
@@ -217,6 +217,11 @@ class UscopeScene():
         for i in range(n_objects):
             # Random selection of central shifts for placement
             i_shift = round(random.random(), 3); j_shift = round(random.random(), 3)  # random generation of central pixel shifts
+            # Checking that shifts are generated in the subpixel range and correcting it if not
+            if i_shift >= 1.0:
+                i_shift -= round(random.random(), 3)*0.25
+            if j_shift >= 1.0:
+                j_shift -= round(random.random(), 3)*0.25
             radius = random.gauss(mu=mean_size, sigma=size_std)  # get the radius from Gaussian distribution
             # Random selection of max intensity for the profile casting
             if isinstance(min_intensity, int) and isinstance(max_intensity, int):
@@ -335,18 +340,44 @@ class UscopeScene():
                         while (not placed and i_attempts < max_attempts) and len(available_correcting_coordinates) > 0:
                             overlapped = False  # flag for checking if the object is overlapped with the occupied place on a binary mask
                             i_obj, j_obj = random.choice(available_correcting_coordinates)  # randomly choose from the available coordinates
-                            for i in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border):
-                                for j in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border):
-                                    if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
-                                        if self.__binary_placement_mask[i, j] > 0:
-                                            overlapped = True; placed = False; i_attempts += 1
-                                            try:
-                                                available_correcting_coordinates.remove((i_obj, j_obj))
-                                            except ValueError:
-                                                pass
-                                            break
-                                if overlapped:
-                                    break
+                            # Vectorized form of the overlapping check
+                            i_max, j_max = self.__binary_placement_mask.shape; i_max -= 1; j_max -= 1
+                            # Define the region of the placement mask for checking
+                            if i_obj-additional_border < 0:
+                                i_start = 0
+                            else:
+                                i_start = i_obj-additional_border
+                            if j_obj-additional_border < 0:
+                                j_start = 0
+                            else:
+                                j_start = j_obj-additional_border
+                            if i_obj + h_fl_obj + additional_border > i_max:
+                                i_finish = i_max
+                            else:
+                                i_finish = i_obj +h_fl_obj + additional_border
+                            if j_obj + w_fl_obj + additional_border > j_max:
+                                j_finish = j_max
+                            else:
+                                j_finish = j_obj + w_fl_obj + additional_border
+                            if np.max(self.__binary_placement_mask[i_start:i_finish, j_start:j_finish]) > 0:
+                                overlapped = True; placed = False; i_attempts += 1
+                                try:
+                                    available_correcting_coordinates.remove((i_obj, j_obj))
+                                except ValueError:
+                                    pass
+                            # # Straight way (pixelwise) form of the overlapping check (comparable performance with vectorized form above)
+                            # for i in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border):
+                            #     for j in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border):
+                            #         if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
+                            #             if self.__binary_placement_mask[i, j] > 0:
+                            #                 overlapped = True; placed = False; i_attempts += 1
+                            #                 try:
+                            #                     available_correcting_coordinates.remove((i_obj, j_obj))
+                            #                 except ValueError:
+                            #                     pass
+                            #                 break
+                            #     if overlapped:
+                            #         break
                             if not overlapped:
                                 placed = True; break
                             if len(available_correcting_coordinates) == 0:
@@ -354,7 +385,8 @@ class UscopeScene():
                         # print("# of used attempts:", i_attempts)  # for debugging
                         # Exclude the coordinates occupied by the placed object from the meshgrid (list with coordinates pares)
                         if placed:
-                            coordinates_for_del = [(i_exc, j_exc) for i_exc in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border)
+                            coordinates_for_del = [(i_exc, j_exc)
+                                                   for i_exc in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border)
                                                    for j_exc in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border)]
                             for del_coord in coordinates_for_del:
                                 try:
@@ -556,7 +588,7 @@ class FluorObj():
     __acceptable_shape_methods: list = ['gaussian', 'g', 'lorentzian', 'lor', 'derivative of logistic func.', 'dlogf', 'bump square',
                                         'bump2', 'bump cube', 'bump3', 'bump ^8', 'bump8', 'smooth circle', 'smcir', 'oversampled circle',
                                         'ovcir', 'undersampled circle', 'uncir']
-    valuable_round_shapes: list = ['gaussian', 'derivative of logistic func.', 'bump square', 'bump cube', 'bump ^8', 'smooth circle']
+    valuable_round_shapes: list = ['gaussian', 'derivative of logistic func.', 'bump cube', 'bump ^8', 'smooth circle']
     image_type = None; center_shifts: tuple = (0.0, 0.0)   # subpixel shift of the center of the object
     casted_profile: np.ndarray = None  # casted normalized profile to the provided image type
     __profile_croped: bool = False  # flag for setting if the profile was cropped (zero pixel rows / columns removed)
@@ -702,7 +734,8 @@ class FluorObj():
             if abs(x_shift) < 1.0 and abs(y_shift) < 1.0:
                 self.center_shifts = center_shifts
             else:
-                raise ValueError(f"One of the shifts '{center_shifts}' are more than 1px, but the shifts are expected to be in the subpixel range")
+                raise ValueError(f"One of the shifts '{center_shifts}' are more than 1px, "
+                                 + "but the shifts are expected to be in the subpixel range")
         if (self.shape_type == "round" or self.shape_type == "r") and (self.border_type == "computed" or self.border_type == "co"):
             self.profile = continuous_shaped_bead(self.radius, self.center_shifts, bead_type=self.shape_method)
         elif (self.shape_type == "round" or self.shape_type == "r") and (self.border_type == "precise" or self.border_type == "pr"):
@@ -997,7 +1030,7 @@ if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_presice_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
     test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False;
-    test_precise_shape_gen = False; test_round_shaped_gen = True; shifts = (-0.2, 0.44)
+    test_precise_shape_gen = True; test_round_shaped_gen = True; shifts = (-0.2, 0.44)
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -1027,6 +1060,7 @@ if __name__ == "__main__":
         gb8 = FluorObj(typical_size=2.0, center_shifts=shifts); gb8.get_shape(); gb8.crop_shape(); gb8.plot_shape()
         if test_casting:
             gb8.get_casted_shape(255, 'uint8'); gb8.plot_casted_shape()
+    # Test of ellipse shaped objects generation
     if test_ellipse_centered:
         gb11 = FluorObj(shape_type='ellipse', typical_size=(4.4, 2.5, np.pi/3)); gb11.get_shape(); gb11.plot_shape()
         if test_casting:
@@ -1035,8 +1069,10 @@ if __name__ == "__main__":
         gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(shifts); gb12.crop_shape(); gb12.plot_shape()
         if test_casting:
             gb12.get_casted_shape(255, 'uint8'); gb12.plot_casted_shape()
+    # Testing of cropping
     if test_cropped_shapes:
         gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(shifts); gb12.plot_shape()
+    # Testing of putting the manually generated objects on the scene
     if test_put_objects:
         scene = UscopeScene(width=24, height=21); gb8 = FluorObj(typical_size=2.78, center_shifts=shifts); gb8.get_shape()
         gb12 = FluorObj(shape_type='el', typical_size=(4.9, 2.8, np.pi/3)); gb12.get_shape(); gb12.get_casted_shape(max_pixel_value=255)
@@ -1045,6 +1081,7 @@ if __name__ == "__main__":
         gb9 = FluorObj(typical_size=3.0, center_shifts=(0.25, -0.1)); gb9.get_shape(); gb9.get_casted_shape(max_pixel_value=251)
         gb9.crop_shape(); gb9.set_image_sizes(scene.shape); gb9.set_coordinates((10, 18))
         scene.put_objects_on(fluo_objects=(gb8, gb12)); scene.put_objects_on(fluo_objects=(gb9, )); scene.show_scene()
+    # Testing of generating scenes with various settings
     if test_generate_objects:
         objs = UscopeScene.get_random_objects(mean_size=4.2, size_std=1.5, shapes='r', intensity_range=(230, 252), n_objects=2)
         objs2 = UscopeScene.get_random_objects(mean_size=(7.3, 5), size_std=(2, 1.19), shapes='el', intensity_range=(220, 250), n_objects=2)
@@ -1055,15 +1092,15 @@ if __name__ == "__main__":
         objs3 = UscopeScene.get_random_objects(mean_size=(8.3, 5.4), size_std=(2, 1.19), shapes='mixed', intensity_range=(182, 250), n_objects=5)
         scene = UscopeScene(width=55, height=46); scene.spread_objects_on(objs3); scene.show_scene(color_map='gray')
     if test_precise_shape_gen:
-        objs4 = UscopeScene.get_random_objects(mean_size=(6.0, 5.1), size_std=(1.25, 0.95), shapes='mixed', intensity_range=(182, 250),
-                                               n_objects=6, verbose_info=True)
-        scene = UscopeScene(width=38, height=35); scene2 = UscopeScene(width=38, height=35)
+        objs4 = UscopeScene.get_random_objects(mean_size=(6.21, 5.36), size_std=(1.25, 0.95), shapes='mixed', intensity_range=(182, 250),
+                                               n_objects=5, verbose_info=True)
+        scene = UscopeScene(width=32, height=28); scene2 = UscopeScene(width=32, height=28)
         objs4_placed = scene.set_random_places(objs4, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         scene.put_objects_on(objs4, save_only_objects_inside=True); scene.show_scene()
         objs4_placed2 = scene2.set_random_places(objs4, overlapping=True, touching=False, only_within_scene=True, verbose_info=True)
         scene2.put_objects_on(objs4, save_only_objects_inside=True); scene2.show_scene()
     if test_round_shaped_gen:
-        objs5 = UscopeScene.get_round_objects(mean_size=5.2, size_std=1.2, intensity_range=(188, 251), n_objects=12)
+        objs5 = UscopeScene.get_round_objects(mean_size=5.2, size_std=1.2, intensity_range=(188, 251), n_objects=50)
         scene3 = UscopeScene(width=102, height=90)
         objs5_pl = scene3.set_random_places(objs5, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         scene3.put_objects_on(objs5, save_only_objects_inside=True); scene3.show_scene()
