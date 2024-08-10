@@ -46,7 +46,7 @@ class UscopeScene():
     max_pixel_value_uint8: int = 255; max_pixel_value_uint16: int = 65535; shape: tuple = (height, width)
     fluo_objects: list = []; shape_types = ['mixed', 'round', 'r', 'ellipse', 'el']
     __image_cleared: bool = True  # for tracking that the scene was cleared (zeroed)
-    __available_coordinates = []; __binary_placement_mask = None
+    __available_coordinates = []; __binary_placement_mask = None; denoized_image: np.ndarray = None
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8'):
         """
@@ -332,7 +332,7 @@ class UscopeScene():
                         # intersections with already placed objects, regulate # of attempts to place below in the while condition
                         i_attempts = 0; placed = False; available_correcting_coordinates = self.__available_coordinates[:]
                         # Adapting max number of attempts
-                        if  0 < len(available_correcting_coordinates) < 101:
+                        if 0 < len(available_correcting_coordinates) < 101:
                             max_attempts = len(available_correcting_coordinates)
                         else:
                             max_attempts = 100
@@ -569,6 +569,26 @@ class UscopeScene():
         """
         return self.__image_cleared
 
+    # %% Making scene realistic and useful
+    def add_noise(self, seed: int = None) -> np.ndarray:
+        if seed is None:
+            rng = np.random.default_rng()
+        else:
+            rng = np.random.default_rng(seed)
+        # Substitue the calculated exact pixel value with the Poisson distributed one
+        if not self.__image_cleared:
+            h, w = self.image.shape; self.denoized_image = self.image.copy(); raw_pixels = np.zeros(shape=self.image.shape)
+            for i in range(h):
+                for j in range(w):
+                    if float(self.image[i, j]) > 0.0:
+                        raw_pixels[i, j] = rng.poisson(lam=self.image[i, j])  # save converted original value with the Poisson-distributed
+                        if raw_pixels[i, j] > self.max_pixel_value:
+                            raw_pixels[i, j] = self.max_pixel_value
+            if self.img_type == 'uint16' or self.img_type is np.uint16 or self.img_type == 'uint8' or self.img_type is np.uint8:
+                self.image = np.round(raw_pixels, 0).astype(self.img_type)
+            else:
+                self.image = raw_pixels.astype(self.img_type)
+
 
 # %% Object class definition
 class FluorObj():
@@ -723,6 +743,13 @@ class FluorObj():
         ------
         NotImplementedError
             For some set of allowed parameters for class initialization the calculation hasn't been yet implemented.
+
+        References
+        ----------
+        Continuosly shaped objects are created by adapting the functions from:
+        [1] https://en.wikipedia.org/wiki/Bell-shaped_function
+        'Precisely' shaped objects are created by the custom algorithm, which calculates part of an object still laying
+        within the affected ('border') pixels.
 
         Returns
         -------
@@ -1030,7 +1057,7 @@ if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_presice_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
     test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False;
-    test_precise_shape_gen = True; test_round_shaped_gen = True; shifts = (-0.2, 0.44)
+    test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = True; shifts = (-0.2, 0.44)
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -1104,3 +1131,10 @@ if __name__ == "__main__":
         scene3 = UscopeScene(width=102, height=90)
         objs5_pl = scene3.set_random_places(objs5, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         scene3.put_objects_on(objs5, save_only_objects_inside=True); scene3.show_scene()
+    if test_adding_noise:
+        objs6 = UscopeScene.get_random_objects(mean_size=(8.91, 6.36), size_std=(1.05, 0.92), shapes='mixed', intensity_range=(182, 250),
+                                               n_objects=4, verbose_info=True)
+        scene = UscopeScene(width=41, height=37)
+        objs6_placed = scene.set_random_places(objs6, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
+        scene.put_objects_on(objs6_placed, save_only_objects_inside=True); scene.show_scene("Without Poisson noise")
+        scene.add_noise(); scene.show_scene("With Poisson noise")
