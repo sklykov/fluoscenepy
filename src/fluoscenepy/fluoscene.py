@@ -199,7 +199,11 @@ class UscopeScene():
                 fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
             if verbose_info:
                 elapsed_time = int(round(1000.0*(time.perf_counter() - t1), 0))
-                print(f"Generated object #{i+1} out of {n_objects}, elapsed {elapsed_time} msec", flush=True)
+                if elapsed_time > 1000:
+                    elapsed_time /= 1000.0; elapsed_time = round(elapsed_time, 1)
+                    print(f"Generated obj. #{i+1} out of {n_objects}, elapsed {elapsed_time} sec", flush=True)
+                else:
+                    print(f"Generated obj. #{i+1} out of {n_objects}, elapsed {elapsed_time} msec", flush=True)
         if verbose_info:
             elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
             if elapsed_time_ov > 1000:
@@ -569,25 +573,59 @@ class UscopeScene():
         """
         return self.__image_cleared
 
-    # %% Making scene realistic and useful
-    def add_noise(self, seed: int = None) -> np.ndarray:
+    # %% Making scene realistic and useful by adding noise
+    def add_noise(self, seed: int = None, mean_noise: Union[int, float] = None, sigma_noise: Union[int, float] = None) -> np.ndarray:
+        """
+        Add Poisson (singla dependent) and background (Gaussian) noise.
+
+        Parameters
+        ----------
+        seed : int, optional
+            Long integer for initializing pseudorandom generator for repeating generated sequencies. The default is None.
+        mean_noise : Union[int, float], optional
+            Mean for Gaussian noise intensity. The default is None.
+        sigma_noise : Union[int, float], optional
+            Sigma for Gaussian noise intensity. The default is None.
+
+        References
+        ----------
+        [1]
+
+        Returns
+        -------
+        numpy.ndarray
+            Stored image with a scene and with added noise.
+
+        """
         if seed is None:
             rng = np.random.default_rng()
         else:
             rng = np.random.default_rng(seed)
-        # Substitue the calculated exact pixel value with the Poisson distributed one
         if not self.__image_cleared:
+            # Add the Gaussian noise (background)
+            if mean_noise is None:
+                mean_noise = 0.125*np.max(self.image)  # 12.5% of the max value
+            if sigma_noise is None:
+                sigma_noise = 0.33*mean_noise  # 33% of the mean
+            noisy_background = rng.normal(mean_noise, sigma_noise, size=self.image.shape)  # normally distributed noise on background
+            noisy_background = np.where(noisy_background < 0.0, 0.0, noisy_background)  # check that all pixel values are positive
+            # Substitue the calculated exact pixel value with the Poisson distributed one due to the properties of commonly used cameras
             h, w = self.image.shape; self.denoized_image = self.image.copy(); raw_pixels = np.zeros(shape=self.image.shape)
             for i in range(h):
                 for j in range(w):
                     if float(self.image[i, j]) > 0.0:
                         raw_pixels[i, j] = rng.poisson(lam=self.image[i, j])  # save converted original value with the Poisson-distributed
+                        raw_pixels[i, j] += noisy_background[i, j]  # add Gaussian noise
                         if raw_pixels[i, j] > self.max_pixel_value:
-                            raw_pixels[i, j] = self.max_pixel_value
+                            raw_pixels[i, j] = self.max_pixel_value  # check that the pixel values are still in range with the image type
+                    else:
+                        raw_pixels[i, j] = noisy_background[i, j]
+            # Casting the noisy image back to the original image format
             if self.img_type == 'uint16' or self.img_type is np.uint16 or self.img_type == 'uint8' or self.img_type is np.uint8:
                 self.image = np.round(raw_pixels, 0).astype(self.img_type)
             else:
                 self.image = raw_pixels.astype(self.img_type)
+        return self.image
 
 
 # %% Object class definition
@@ -1057,7 +1095,7 @@ if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_presice_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
     test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False;
-    test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = True; shifts = (-0.2, 0.44)
+    test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = True; test_various_imgs = True; shifts = (-0.2, 0.44)
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -1132,9 +1170,11 @@ if __name__ == "__main__":
         objs5_pl = scene3.set_random_places(objs5, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         scene3.put_objects_on(objs5, save_only_objects_inside=True); scene3.show_scene()
     if test_adding_noise:
-        objs6 = UscopeScene.get_random_objects(mean_size=(8.91, 6.36), size_std=(1.05, 0.92), shapes='mixed', intensity_range=(182, 250),
+        objs6 = UscopeScene.get_random_objects(mean_size=(8.11, 6.36), size_std=(1.05, 0.92), shapes='mixed', intensity_range=(180, 245),
                                                n_objects=4, verbose_info=True)
         scene = UscopeScene(width=41, height=37)
         objs6_placed = scene.set_random_places(objs6, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
-        scene.put_objects_on(objs6_placed, save_only_objects_inside=True); scene.show_scene("Without Poisson noise")
-        scene.add_noise(); scene.show_scene("With Poisson noise")
+        scene.put_objects_on(objs6_placed, save_only_objects_inside=True); scene.show_scene(str_id="Without Poisson noise")
+        scene.add_noise(); scene.show_scene(str_id="With Poisson  & Gaussian noise")
+    if test_various_imgs:  # TODO: test adding noise to float image and various mean / sigma values
+        pass
