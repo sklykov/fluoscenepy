@@ -6,7 +6,7 @@ Main script for the 'fluoscenepy' package.
 @licence: MIT, @year: 2024
 
 """
-# TODO: 1) add noise to the generated scenes; 2) add tests run by pytest
+# TODO: 2) add tests run by pytest
 # %% Global imports
 import numpy as np
 import matplotlib.pyplot as plt
@@ -36,7 +36,8 @@ class UscopeScene():
 
     References
     ----------
-    [1]
+    For the used noise models, see the 'add_noise method'.
+    [1] ...
 
     """
 
@@ -46,7 +47,8 @@ class UscopeScene():
     max_pixel_value_uint8: int = 255; max_pixel_value_uint16: int = 65535; shape: tuple = (height, width)
     fluo_objects: list = []; shape_types = ['mixed', 'round', 'r', 'ellipse', 'el']
     __image_cleared: bool = True  # for tracking that the scene was cleared (zeroed)
-    __available_coordinates = []; __binary_placement_mask = None; denoized_image: np.ndarray = None
+    __available_coordinates = []; __binary_placement_mask = None; denoised_image: np.ndarray = None
+    __noise_added: bool = False  # for tracking that the noise has been added
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8'):
         """
@@ -72,8 +74,8 @@ class UscopeScene():
 
         """
         # Check provided width and height
-        if width < 3 or height < 3:
-            raise ValueError(f"Provided dimensions ({width}x{height}) is less than 3")
+        if width < 4 or height < 4:
+            raise ValueError(f"Provided dimensions ({width}x{height}) is less than 4")
         if width > 10000 or height > 10000:
             __warn_message = f"Provided dimensions ({width}x{height}) pixels are unrealistic for the common image"
             warnings.warn(__warn_message)
@@ -312,8 +314,12 @@ class UscopeScene():
                         # Not overlapping, below - place the largest object and create the mask for preventing the overlapping
                         if not overlapping:
                             # Generate the meshgrid of all avalaible for placing coordinates
-                            self.__available_coordinates = [(i_a, j_a) for i_a in range(i_smallest, i_largest)
-                                                            for j_a in range(j_smallest, j_largest)]
+                            if not only_within_scene:
+                                self.__available_coordinates = [(i_a, j_a) for i_a in range(i_smallest, i_largest)
+                                                                for j_a in range(j_smallest, j_largest)]
+                            else:
+                                # Below - keep the possible placement close to bottom and right edges of the scene and remove them later
+                                self.__available_coordinates = [(i_a, j_a) for i_a in range(i_smallest, h-2) for j_a in range(j_smallest, w-2)]
                             # Generate and placing objects on the binary mask (instead of the real image or scene)
                             self.__binary_placement_mask = np.zeros(shape=self.image.shape, dtype='uint8')
                             for i in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border):
@@ -329,17 +335,26 @@ class UscopeScene():
                                 except ValueError:
                                     pass
                             filtered_fluo_obj.append(fluo_obj)  # storing the 1st placed and not overlapped objects
-                            random.shuffle(self.__available_coordinates)  # shuffle available coordinates for providing more randomness (?)
+                            random.shuffle(self.__available_coordinates)  # shuffle available coordinates
                         fluo_obj.set_coordinates((i_obj, j_obj))  # set random place of the object within the image
                     else:
                         # Trying to place the object in the randomly selected from remaining coordinates place and checking if there is no
                         # intersections with already placed objects, regulate # of attempts to place below in the while condition
                         i_attempts = 0; placed = False; available_correcting_coordinates = self.__available_coordinates[:]
                         # Adapting max number of attempts
-                        if 0 < len(available_correcting_coordinates) < 101:
+                        if 0 < len(available_correcting_coordinates) < 200:
                             max_attempts = len(available_correcting_coordinates)
                         else:
-                            max_attempts = 100
+                            max_attempts = 200  # limiting max number of attempts to find suitable coordinates
+                        # Prevent placing out of scene by removing from available coordinates
+                        if only_within_scene:
+                            coordinates_for_del = [(i_exc, j_exc) for i_exc in range(h-h_fl_obj, h-2) for j_exc in range(0, w-2)]
+                            coordinates_for_del += [(i_exc, j_exc) for i_exc in range(0, h-2) for j_exc in range(w-w_fl_obj, w-2)]
+                            for del_coord in coordinates_for_del:
+                                try:
+                                    available_correcting_coordinates.remove(del_coord)
+                                except ValueError:
+                                    pass
                         # Trying to place the object and check for intersections with the other ones
                         while (not placed and i_attempts < max_attempts) and len(available_correcting_coordinates) > 0:
                             overlapped = False  # flag for checking if the object is overlapped with the occupied place on a binary mask
@@ -386,7 +401,6 @@ class UscopeScene():
                                 placed = True; break
                             if len(available_correcting_coordinates) == 0:
                                 placed = False; break
-                        # print("# of used attempts:", i_attempts)  # for debugging
                         # Exclude the coordinates occupied by the placed object from the meshgrid (list with coordinates pares)
                         if placed:
                             coordinates_for_del = [(i_exc, j_exc)
@@ -403,14 +417,17 @@ class UscopeScene():
                                     if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
                                         self.__binary_placement_mask[i, j] = 1
                             fluo_obj.set_coordinates((i_obj, j_obj))  # if found place, place the object
-                            random.shuffle(self.__available_coordinates)  # shuffle available coordinates for providing more randomness (?)
                             filtered_fluo_obj.append(fluo_obj)  # collect for returning only placed object, excluding not placed ones
             if not overlapping:
                 fluo_objects = tuple(filtered_fluo_obj)  # convert list -> tuple for returning only placed objects
                 # plt.figure("Binary Placement Mask"); plt.imshow(self.__binary_placement_mask)  # plot the occupied places by the objects
             if verbose_info:
                 elapsed_time = int(round(1000.0*(time.perf_counter() - t1), 0))
-                print(f"Placing of {n_objects} objects takes: {elapsed_time} msec", flush=True)
+                if elapsed_time < 1000:
+                    print(f"Placing of {n_objects} objects takes: {elapsed_time} msec", flush=True)
+                else:
+                    elapsed_time /= 1000.0; elapsed_time = round(elapsed_time, 1)
+                    print(f"Placing of {n_objects} objects takes: {elapsed_time} sec", flush=True)
         return fluo_objects
 
     # %% Put objects on the scene
@@ -516,31 +533,35 @@ class UscopeScene():
 
 
     # %% Scene manipulation
-    def show_scene(self, color_map='viridis', str_id: str = ""):
+    def show_scene(self, str_id: str = "", color_map='viridis', unique_plot_id: bool = True):
         """
         Show interactively the stored in the class scene (image) by plotting it using matplotlib.
 
         Parameters
         ----------
-        color_map
-            Color map acceptable by matplotlib.pyplot.cm. Fallback is viridis color map. The default is 'viridis'.
         str_id : str, optional
             Unique string id for plotting several plots with unique Figure() names. The default is "".
+        color_map, optional
+            Color map acceptable by matplotlib.pyplot.cm. Fallback is viridis color map. The default is 'viridis'.
+        unique_plot_id: bool, optional
+            Flag for adding to plot name some random integer id for preventing plots overlapping. The default is True.
 
         Returns
         -------
         None.
 
         """
-        h, w = self.image.shape; height_width_ratio = h/w; default_image_size = 5.8
+        h, w = self.image.shape; height_width_ratio = h/w; default_image_size = 5.8; additional_id = ""
         if len(str_id) == 0:
-            str_id = str(random.randint(1, 100))
+            str_id = str(random.randint(1, 1000))
+        elif unique_plot_id:
+            additional_id = str(random.randint(1, 1000))
         if not plt.isinteractive():
             plt.ion()
         if self.__image_cleared:
-            figure_name = "Blank UscopeScene " + str_id
+            figure_name = "Blank UscopeScene " + str_id + " " + additional_id
         else:
-            figure_name = "UscopeScene " + str_id
+            figure_name = "UscopeScene " + str_id + " " + additional_id
         plt.figure(figure_name, figsize=(default_image_size, default_image_size*height_width_ratio))
         try:
             plt.imshow(self.image, cmap=color_map, origin='upper')
@@ -573,10 +594,12 @@ class UscopeScene():
         """
         return self.__image_cleared
 
-    # %% Making scene realistic and useful by adding noise
+    # %% Making scene realistic and useful by adding noise: shot and detector ones
     def add_noise(self, seed: int = None, mean_noise: Union[int, float] = None, sigma_noise: Union[int, float] = None) -> np.ndarray:
         """
-        Add Poisson (singla dependent) and background (Gaussian) noise.
+        Add Poisson (signal dependent shot noise) and background (Gaussian or detector) noise.
+
+        Note that if the called again on the scene, this method will add newly generated noise to the initial image.
 
         Parameters
         ----------
@@ -589,12 +612,13 @@ class UscopeScene():
 
         References
         ----------
-        [1]
+        [1] "Imaging in focus: An introduction to denoising bioimages in the era of deep learning", R.F. Laine,
+        G. Jacquemet, A. Krull (2021)
 
         Returns
         -------
         numpy.ndarray
-            Stored image with a scene and with added noise.
+            The scene added shot (Poisson) and detector (Gaussian) noises.
 
         """
         if seed is None:
@@ -610,7 +634,12 @@ class UscopeScene():
             noisy_background = rng.normal(mean_noise, sigma_noise, size=self.image.shape)  # normally distributed noise on background
             noisy_background = np.where(noisy_background < 0.0, 0.0, noisy_background)  # check that all pixel values are positive
             # Substitue the calculated exact pixel value with the Poisson distributed one due to the properties of commonly used cameras
-            h, w = self.image.shape; self.denoized_image = self.image.copy(); raw_pixels = np.zeros(shape=self.image.shape)
+            h, w = self.image.shape; raw_pixels = np.zeros(shape=self.image.shape)
+            if not self.__noise_added:
+                self.denoised_image = self.image.copy()  # copy initial scene without noise
+            else:
+                self.image = self.denoised_image.copy()  # restore the initial image by the copying the content of the denoised image
+            # Generate and add noise pixelwise
             for i in range(h):
                 for j in range(w):
                     if float(self.image[i, j]) > 0.0:
@@ -625,6 +654,21 @@ class UscopeScene():
                 self.image = np.round(raw_pixels, 0).astype(self.img_type)
             else:
                 self.image = raw_pixels.astype(self.img_type)
+            self.__noise_added = True  # switch the flag for tracking that the noise has been added
+        return self.image
+
+    def remove_noise(self) -> np.ndarray:
+        """
+        Remove added previously noise by copying the stored in 'denoise_image' pixel content.
+
+        Returns
+        -------
+        numpy.ndarray
+            Initial scene without noise.
+
+        """
+        if self.__noise_added and self.denoised_image is not None:
+            self.image = self.denoised_image.copy(); self.__noise_added = False
         return self.image
 
 
@@ -664,7 +708,7 @@ class FluorObj():
         Parameters
         ----------
         typical_size : Union[float, int, tuple]
-            Typical sizes of the object, e.g. for a bead - radius (float or int), for ellipse - tuple with axes a, b
+            Typical sizes of the object, e.g. for a bead - diameter (float or int), for ellipse - tuple with axes a, b
             and angle in radians (3 values).
         center_shifts : tuple, optional
             Shifts in pixels of the object center, should be less than 1px. The default is (0.0, 0.0).
@@ -703,10 +747,10 @@ class FluorObj():
         # Checking typical sizes depending on the shape type
         if self.shape_type == "round" or self.shape_type == "r":
             typical_size = float(typical_size)  # assuming that the input parameter can be converted to the float type
-            if typical_size < 0.5:
-                raise ValueError(f"Expected typical size (radius) should be larger than 0.5px, provided: {typical_size}")
+            if typical_size < 1.0:
+                raise ValueError(f"Expected typical size (radius) should be larger than 1px, provided: {typical_size}")
             else:
-                self.radius = typical_size
+                self.radius = 0.5*typical_size
         else:
             if self.shape_type == "ellipse" or self.shape_type == "el":
                 self.border_type = 'precise'  # default border type for ellipse shape calculation
@@ -714,8 +758,8 @@ class FluorObj():
                     raise ValueError("For ellipse particle expected length of typical size tuple is equal 3: (a, b, angle)")
                 else:
                     a, b, angle = typical_size; max_size = max(a, b); min_size = min(a, b)
-                    if max_size < 1.0 or min_size < 0.5:
-                        raise ValueError("Expected sizes a, b should be positive, minimal is more than 0.5px and maximal is more than 1px")
+                    if max_size < 1.5 or min_size < 1.0:
+                        raise ValueError("Expected sizes a, b should be positive, minimal is more than 1px and maximal is more than 1.5px")
                     if angle > 2.0*np.pi or angle < -2.0*np.pi:
                         raise ValueError("Expected angle should be in the range of [-2pi, 2pi]")
                     self.typical_sizes = typical_size
@@ -873,7 +917,7 @@ class FluorObj():
                     continue
                 else:
                     if not border_found:
-                        i_start = i
+                        i_start = i+1
                     else:
                         i_end = i; break
             border_found = False
@@ -884,10 +928,10 @@ class FluorObj():
                     continue
                 else:
                     if not border_found:
-                        j_start = j
+                        j_start = j+1
                     else:
                         j_end = j; break
-            self.profile = self.profile[i_start+1:i_end, j_start+1:j_end]
+            self.profile = self.profile[i_start:i_end, j_start:j_end]
             if self.casted_profile is not None:
                 self.casted_profile = self.casted_profile[i_start+1:i_end, j_start+1:j_end]
             if i_start > 0 or j_start > 0 or i_end < m or j_end < n:
@@ -899,7 +943,7 @@ class FluorObj():
         """
         Plot interactively the profile of the object computed by the get_shape() method along with the border of the object.
 
-        Please note that the border will be plotted if the the shape hadn't been cropped or in some cases if it had.
+        Please note that the border will be plotted if the the shape hadn't been cropped before.
 
         Parameters
         ----------
@@ -918,28 +962,23 @@ class FluorObj():
                 naming = "Cropped Shape"
             else:
                 naming = "Shape"
+            if len(str_id) == 0:
+                str_id = str(random.randint(1, 1000))
             plt.figure(f"{naming} with parameters: {self.explicit_shape_name}, {self.border_type}, center: {self.center_shifts} {str_id}")
             axes_img = plt.imshow(self.profile, cmap=plt.cm.viridis, origin='upper'); plt.axis('off'); plt.colorbar(); plt.tight_layout()
             plot_patch = True  # flag for plotting the patch (Circle or Ellipse)
             if not self.__profile_croped:
                 m_center, n_center = self.profile.shape  # image sizes
-                m_center = m_center // 2 + self.center_shifts[0]; n_center = n_center // 2 + self.center_shifts[1]
                 if self.center_shifts[0] < 0.0 and (self.shape_type == "round" or self.shape_type == "r"):
                     m_center = m_center // 2 + self.center_shifts[0] + 1.0
+                elif self.center_shifts[0] >= 0.0:
+                    m_center = m_center // 2 + self.center_shifts[0]
                 if self.center_shifts[1] < 0.0 and (self.shape_type == "round" or self.shape_type == "r"):
                     n_center = n_center // 2 + self.center_shifts[1] + 1.0
+                elif self.center_shifts[1] >= 0.0:
+                    n_center = n_center // 2 + self.center_shifts[1]
             else:
-                if self.shape_type == "ellipse" or self.shape_type == "el":
-                    plot_patch = False
-                m_center, n_center = self.profile.shape; m_center = m_center // 2; n_center = n_center // 2
-                if 0.0 < self.center_shifts[0] <= 0.5 or -0.5 <= self.center_shifts[0] < 0.0:
-                    m_center += self.center_shifts[0]
-                else:
-                    plot_patch = False  # prevent plotting patch because after cropping the shape can be shifted on the plot
-                if 0.0 < self.center_shifts[1] <= 0.5 or -0.5 <= self.center_shifts[1] < 0.0:
-                    n_center += self.center_shifts[1]
-                else:
-                    plot_patch = False
+                plot_patch = False  # just prevent the plotting the patch on the cropped images
             if plot_patch:
                 if self.shape_type == "round" or self.shape_type == "r":
                     axes_img.axes.add_patch(Circle((m_center, n_center), self.radius, edgecolor='red', linewidth=1.5, facecolor='none'))
@@ -1094,8 +1133,9 @@ class FluorObj():
 if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_presice_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
-    test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False;
-    test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = True; test_various_imgs = True; shifts = (-0.2, 0.44)
+    test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False
+    test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = False; test_various_noises = False; shifts = (-0.2, 0.44)
+    test_cropping_shifted_circles = True; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -1109,7 +1149,14 @@ if __name__ == "__main__":
         gb9 = FluorObj(typical_size=2.0, border_type='co', shape_method='ovcir'); gb9.get_shape(); gb9.plot_shape()
         gb10 = FluorObj(typical_size=2.0, border_type='co', shape_method='uncir'); gb10.get_shape(); gb10.plot_shape()
     if test_precise_centered_bead:
-        gb8 = FluorObj(typical_size=2.0); gb8.get_shape(); gb8.plot_shape()
+        gb8 = FluorObj(typical_size=2.0); gb8.get_shape(); gb8.crop_shape(); gb8.plot_shape()
+        gb14 = FluorObj(typical_size=4.75); gb14.get_shape(); gb14.crop_shape(); gb14.plot_shape()
+    # Testing cropping of shifted circles with precise borders
+    if test_cropping_shifted_circles:
+        gb16 = FluorObj(typical_size=3.75, center_shifts=shifts1); gb16.get_shape(); gb16.crop_shape(); gb16.plot_shape()
+        gb17 = FluorObj(typical_size=3.75, center_shifts=shifts2); gb17.get_shape(); gb17.crop_shape(); gb17.plot_shape()
+        gb18 = FluorObj(typical_size=3.75, center_shifts=shifts3); gb18.get_shape(); gb18.plot_shape(); gb18.crop_shape(); gb18.plot_shape()
+        gb20 = FluorObj(typical_size=3.75, center_shifts=shifts); gb20.get_shape(); gb20.plot_shape(); gb20.crop_shape(); gb20.plot_shape()
     # Testing the shifted from the center objects generation
     if test_computed_shifted_beads and not test_computed_centered_beads:
         gb1 = FluorObj(typical_size=2.0, border_type='co', shape_method='g', center_shifts=shifts); gb1.get_shape(); gb1.plot_shape()
@@ -1165,16 +1212,25 @@ if __name__ == "__main__":
         objs4_placed2 = scene2.set_random_places(objs4, overlapping=True, touching=False, only_within_scene=True, verbose_info=True)
         scene2.put_objects_on(objs4, save_only_objects_inside=True); scene2.show_scene()
     if test_round_shaped_gen:
-        objs5 = UscopeScene.get_round_objects(mean_size=5.2, size_std=1.2, intensity_range=(188, 251), n_objects=50)
+        objs5 = UscopeScene.get_round_objects(mean_size=7.5, size_std=1.2, intensity_range=(188, 251), n_objects=55)
         scene3 = UscopeScene(width=102, height=90)
         objs5_pl = scene3.set_random_places(objs5, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         scene3.put_objects_on(objs5, save_only_objects_inside=True); scene3.show_scene()
     if test_adding_noise:
         objs6 = UscopeScene.get_random_objects(mean_size=(8.11, 6.36), size_std=(1.05, 0.92), shapes='mixed', intensity_range=(180, 245),
                                                n_objects=4, verbose_info=True)
-        scene = UscopeScene(width=41, height=37)
+        scene = UscopeScene(width=48, height=41)
         objs6_placed = scene.set_random_places(objs6, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
-        scene.put_objects_on(objs6_placed, save_only_objects_inside=True); scene.show_scene(str_id="Without Poisson noise")
+        scene.put_objects_on(objs6_placed, save_only_objects_inside=True); scene.show_scene(str_id="Without additional noise")
         scene.add_noise(); scene.show_scene(str_id="With Poisson  & Gaussian noise")
-    if test_various_imgs:  # TODO: test adding noise to float image and various mean / sigma values
-        pass
+    # Test adding noise to float image and various mean / sigma values
+    if test_various_noises:
+        objs6 = UscopeScene.get_random_objects(mean_size=(8.61, 6.36), size_std=(1.05, 0.92), shapes='mixed', intensity_range=(180, 245),
+                                               n_objects=4, verbose_info=True)
+        scene8 = UscopeScene(width=48, height=37)
+        obj61_p = scene8.set_random_places(objs6, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
+        scene8.put_objects_on(obj61_p, save_only_objects_inside=True); scene8.show_scene("Without additional noise")
+        scene8.add_noise(); scene8.show_scene("With default noise")
+        scene8.add_noise(mean_noise=180//6, sigma_noise=180//9); scene8.show_scene("With stronger noise")
+        scene8.add_noise(mean_noise=180//4, sigma_noise=180//6); scene8.show_scene("With much more stronger noise")
+        scene8.remove_noise(); scene8.show_scene("Removed noise")
