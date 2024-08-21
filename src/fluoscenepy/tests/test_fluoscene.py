@@ -55,5 +55,21 @@ def test_fluorobj_initialization():
         assert False, "Wrong initialization (FluorObj(typical_size=5, center_shifts=1.0) not thrown the error"
     except TypeError:
         pass
+    try:
+        flobj = FluorObj(typical_size=(4.0, 4.0, 0.25), center_shifts=(0.0, 0.1))
+        assert False, "Wrong initialization FluorObj(typical_size=(4.0, 4.0, 0.25), center_shifts=(0.0, 0.1) not thrown the error"
+    except TypeError:
+        pass
     flobj = FluorObj(typical_size=4.75); flobj.get_shape(); flobj.crop_shape()
     assert flobj.profile.shape[0] > 4 and flobj.profile.shape[1] > 4, f"Profile sizes out of the expected range (5, 5): {flobj.profile.shape}"
+    flobj = FluorObj(typical_size=(4.2, 5.1, 0.25*np.pi), shape_type='el'); flobj.get_shape()
+    flobj.get_casted_shape(max_pixel_value=1921, image_type='uint16'); flobj.crop_shape(); flobj.crop_shape()
+    assert flobj.profile.shape == flobj.casted_profile.shape, "Profile and casted profile shapes aren't equa or double cropping causes errors"
+
+
+def test_objects_generation():
+    circles = UscopeScene.get_round_objects(mean_size=8, size_std=1.5, intensity_range=(202, 253), n_objects=5)
+    scene = UscopeScene(width=55, height=42, image_type='uint16')
+    placed_circles = scene.set_random_places(circles, overlapping=False, touching=False, only_within_scene=True)
+    scene.put_objects_on(placed_circles, save_only_objects_inside=True)
+    assert len(placed_circles) <= len(circles), "Number of placed object more than number of objects"
