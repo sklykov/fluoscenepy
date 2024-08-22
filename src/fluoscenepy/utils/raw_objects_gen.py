@@ -18,7 +18,7 @@ from matplotlib.patches import Ellipse
 
 # %% Utility functions
 # Note that type hints line int | float works for Python >= 3.10
-def distance_f(i_px: Union[int, np.ndarray], j_px: Union[int, np.ndarray], i_centre: Union[int, float], j_centre: Union[int, float]):
+def distance_f(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float], j_centre: Union[int, float]):
     """
     Calculate the distances for pixels.
 
@@ -42,8 +42,8 @@ def distance_f(i_px: Union[int, np.ndarray], j_px: Union[int, np.ndarray], i_cen
     return np.round(np.sqrt(np.power(i_px - i_centre, 2) + np.power(j_px - j_centre, 2)), 6)
 
 
-def ellipse_equation(i_px: Union[int, np.ndarray], j_px: Union[int, np.ndarray], i_centre: Union[int, float], j_centre: Union[int, float],
-                     a: Union[int, float], b: Union[int, float], angle: Union[int, float]) -> float:
+def ellipse_equation(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float],
+                     j_centre: Union[int, float], a: Union[int, float], b: Union[int, float], angle: Union[int, float]) -> float:
     angle = -angle  # makes the angle assignment consistent with the counter-clockwise count
     # Source for the equations below: https://en.wikipedia.org/wiki/Ellipse
     a_h2 = 0.25*a*a; b_h2 = 0.25*b*b  # half of axis (width and height) are used in the equations
@@ -78,7 +78,7 @@ def make_sample(radius: float, center_shift: tuple, max_intensity=255, test_plot
             max_intensity = 1.0
             img_type = 'float'
     else:
-        raise ValueError("Specify Max Intencity for image type according to uint8, uint16, float")
+        raise ValueError("Specify Max Intensity for image type according to uint8, uint16, float")
     img = np.zeros(dtype=img_type, shape=(max_size, max_size))
     # Below - difficult to calculate the precise intersection of the circle and pixels
     # points = []
@@ -139,7 +139,7 @@ def make_sample(radius: float, center_shift: tuple, max_intensity=255, test_plot
                             plt.figure(f"[{i, j}]"); plt.imshow(circle_arc_area1)
                         S1 = 1.0
                     print(f"Found ratio for the pixel [{i, j}]:", S1); pixel_value = S1
-                    # Commented out below - debugging of the method, prooving the calculation is right, kept for checking
+                    # Commented out below - debugging of the method, proving the calculation is right, kept for checking
                     # print(f"Found ratio for the pixel [{i, j}]:", S, "diff for - vect. implementations:", round(abs(S-S1), 6))
                     # r_diff1 = round(r2 - np.power(i_m - i_center, 2), 6); r_diff2 = round(r2 - np.power(j_m - j_center, 2), 6)
                     # r_diff3 = round(r2 - np.power(i_p - i_center, 2), 6); r_diff4 = round(r2 - np.power(j_p - j_center, 2), 6)
@@ -187,7 +187,7 @@ def make_sample(radius: float, center_shift: tuple, max_intensity=255, test_plot
                     # pixel_value = S
                     # print(f"Found points for the single pixel [{i, j}]:", found_points)
 
-            # Pixel value scaling according the the provided image type
+            # Pixel value scaling according the provided image type
             pixel_value *= float(max_intensity)
             # Pixel value conversion to the image type
             if pixel_value > 0.0:
@@ -284,17 +284,14 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
         max_size = int(round(3.0*sigma, 0))
     elif bead_type == 'lorentzian' or bead_type == 'lor':
         gamma = r*0.8; max_size = int(round(2.5*r, 0))
-    elif bead_type == 'derivative of logistic func.' or bead_type == 'dlogf':
+    elif bead_type == 'derivative of logistic func.' or bead_type == 'dlogf' or bead_type == 'smooth circle' or bead_type == 'smcir':
         max_size = int(round(2.5*r, 0))
     elif (bead_type == 'bump square' or bead_type == 'bump2' or bead_type == 'bump cube' or bead_type == 'bump3'
           or bead_type == 'bump ^8' or bead_type == 'bump8'):
         max_size = int(round(2.0*r, 0))
-    elif bead_type == 'smooth circle' or bead_type == 'smcir':
-        max_size = int(round(2.5*r, 0))
-    elif bead_type == 'oversampled circle' or bead_type == 'ovcir':
-        max_size = int(round(2.25*r, 0))
-    elif bead_type == 'undersampled circle' or bead_type == 'uncir':
-        max_size = int(round(2.0*r, 0))
+    elif (bead_type == 'oversampled circle' or bead_type == 'ovcir' or bead_type == 'undersampled circle' or bead_type == 'uncir'
+          or bead_type == 'circle' or bead_type == 'c'):
+        max_size = int(round(2.25*r, 0)) + 2
     else:
         max_size = int(round(4.0*r, 0))
     x_shift, y_shift = center_shifts
@@ -342,7 +339,7 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
                     img[i, j] = np.exp(b_pow/(distance_pow - b_pow))
             elif bead_type == 'smooth circle' or bead_type == 'smcir':
                 if distance < 0.5*r:
-                    img[i, j] = 1.0  # the pixel lays completely inside of the circle
+                    img[i, j] = 1.0  # the pixel lays completely inside the circle
                 elif 0.5*r <= distance < 1.0*r:
                     diff_distance = distance/r - 0.5  # difference between distance to the pixel and half of the radius
                     img[i, j] = 1.0 - np.power(diff_distance, 3)
@@ -352,16 +349,20 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
             elif bead_type == 'oversampled circle' or bead_type == 'ovcir':
                 net_shift = round(0.5*np.sqrt(y_shift*y_shift + x_shift*x_shift), 6)  # calculation the net shift of the picture center
                 if distance <= r:
-                    img[i, j] = 1.0  # the pixel lays definitely inside of a radius of a circle
-                elif distance <= r + net_shift + 1.0:  # The pixel is potentially intersecting with the circle border
-                    i_m = i - 0.5; j_m = j - 0.5; i_p = i + 0.5; j_p = j + 0.5; size_subareas = 500
+                    img[i, j] = 1.0  # the pixel lays definitely inside the radius of the circle
+                elif distance <= r + net_shift + 0.75:  # The pixel is potentially intersecting with the circle border
+                    i_m = i - 0.5; j_m = j - 0.5; i_p = i + 0.5; j_p = j + 0.5; size_subareas = 400
                     x_row = np.linspace(start=i_m, stop=i_p, num=size_subareas); y_col = np.linspace(start=j_m, stop=j_p, num=size_subareas)
                     coords = np.meshgrid(x_row, y_col); distances = distance_f(coords[0], coords[1], i_center, j_center)
                     circle_arc_area = np.where(distances <= r, 0.02, 0.0)  # assigning the non-zero number for intersected mesh grid points
                     if np.max(circle_arc_area) > 0.0:  # pixel intersects with the circle border
                         img[i, j] = 1.0
+                        # plt.figure(); plt.imshow(circle_arc_area)
             elif bead_type == 'undersampled circle' or bead_type == 'uncir':
                 if distance < r:  # the border pixels (observed when the bead is centered) are removed, only with distances less than r saved
+                    img[i, j] = 1.0
+            elif bead_type == 'circle' or bead_type == 'c':
+                if distance <= r + 1E-6:  # the border pixels laying in the proximity saved as well
                     img[i, j] = 1.0
     # Normalization of profile
     if (bead_type == 'derivative of logistic func.' or bead_type == 'dlogf' or bead_type == 'bump square' or bead_type == 'bump2'
@@ -372,7 +373,7 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
 
 def discrete_shaped_bead(r: float, center_shifts: tuple) -> np.ndarray:
     """
-    Calculate the 2D shape of bead with the border pixel intencities defined from the counting area of these pixels within circle radius.
+    Calculate the 2D shape of bead with the border pixel intensities defined from the counting area of these pixels within circle radius.
 
     Parameters
     ----------
@@ -380,8 +381,6 @@ def discrete_shaped_bead(r: float, center_shifts: tuple) -> np.ndarray:
         Radius of a bead.
     center_shifts : tuple
         Shifts on axis of the bead center.
-    bead_type : str
-        Type of function to be used for calculating the shape.
 
     Returns
     -------
@@ -419,7 +418,7 @@ def discrete_shaped_bead(r: float, center_shifts: tuple) -> np.ndarray:
             if distance < q_rad:  # The pixel lays completely inside of circle border
                 pixel_value = 1.0  # entire pixel lays inside the circle
             elif q_rad <= distance <= r + net_shift + 1.0:  # The pixel is intersecting with the circle border
-                stop_checking = False  # flag for quitting this calculations if the pixel is proven to lay completely inside of the circle
+                stop_checking = False  # flag for quitting these calculations if the pixel is proven to lay completely inside the circle
                 # First, sort out the pixels that lay completely within the circle, but the distance is more than quarter of R:
                 if i < i_center:
                     i_corner = i - 0.5
@@ -443,7 +442,7 @@ def discrete_shaped_bead(r: float, center_shifts: tuple) -> np.ndarray:
                     S1 = round(np.sum(circle_arc_area1)/normalization, 6)
                     if S1 > 1.0:
                         S1 = 1.0  # in the rare cases the integration sum can be more than 1.0 due to the limited precision of numerical integration
-                    pixel_value = S1  # assigning the found square of the area laying inside of a circle
+                    pixel_value = S1  # assigning the found square of the area laying inside a circle
             img[i, j] = pixel_value  # assign the computed intensity to the stored 2D profile
     return img
 
@@ -460,7 +459,7 @@ def discrete_shaped_ellipse(sizes: tuple, angle: float, center_shifts: tuple, ve
     angle : float
         Angle (counter-clockwise) between b and X axes.
     center_shifts : tuple
-        Pixelwise shifts of a ellipse center.
+        Pixelwise shifts of an ellipse center.
     verbose_plots : bool, optional
         Plotting of border sections of an ellipse. The default is False.
 
@@ -493,19 +492,19 @@ def discrete_shaped_ellipse(sizes: tuple, angle: float, center_shifts: tuple, ve
             distance = ellipse_equation(i, j, i_center, j_center, a, b, angle)  # equation for the ellipse testing
             pixel_value = 0.0  # meaning the intensity in the pixel defined on the rules below
             if 0.0 <= distance < 4.0:  # The pixel is intersecting with the ellipse border
-                stop_checking = False  # flag for quitting this calculations if the pixel is proven to lay completely inside of the circle
+                stop_checking = False  # flag for quitting these calculations if the pixel is proven to lay completely inside the circle
                 # First, sort out the pixels that lay completely within the ellipse border, but the distance is more than quarter:
                 if i <= i_center:  # shift to the left
                     i_corner = i - 0.5
                 else:
                     i_corner = i + 0.5
-                if j < j_center:  # shift to the buttom
+                if j < j_center:  # shift to the bottom
                     j_corner = j - 0.5
                 else:
                     j_corner = j + 0.5
                 # Below - distance to the most distant point of the pixel
                 distance_corner = ellipse_equation(i_corner, j_corner, i_center, j_center, a, b, angle)
-                if distance_corner < 0.5:  # empirical value for estimation that the pixel is entirely inside of an ellipse
+                if distance_corner < 0.5:  # empirical value for estimation that the pixel is entirely inside an ellipse
                     pixel_value = 1.0; stop_checking = True
                 # So, the pixel's borders can potentially are intersected by the circle, calculate the estimated intersection area for pixel intensity
                 if not stop_checking:
@@ -516,7 +515,7 @@ def discrete_shaped_ellipse(sizes: tuple, angle: float, center_shifts: tuple, ve
                     S1 = round(np.sum(circle_arc_area1)/normalization, 6)
                     if S1 > 1.0:
                         S1 = 1.0  # in the rare cases the integration sum can be more than 1.0 due to the limited precision of numerical integration
-                    pixel_value = S1  # assigning the found square of the area laying inside of a circle
+                    pixel_value = S1  # assigning the found square of the area laying inside a circle
                 if verbose_plots:
                     plt.figure(f"Pixel {i, j} intersection"); plt.imshow(circle_arc_area1)
             img[i, j] = pixel_value  # assign the computed intensity to the stored 2D profile

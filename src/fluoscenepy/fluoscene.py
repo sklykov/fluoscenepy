@@ -7,15 +7,14 @@ Main script for the 'fluoscenepy' package.
 
 """
 # %% Global imports
-import numpy as np
-import matplotlib.pyplot as plt
-import warnings
-from typing import Union
 import random
-from pathlib import Path
-from matplotlib.patches import Circle, Ellipse
 import time
 import warnings
+from pathlib import Path
+from typing import Union
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.patches import Circle, Ellipse
 
 # %% Local (package-scoped) imports
 if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
@@ -25,9 +24,9 @@ else:
 
 
 # %% Scene (image) class def.
-class UscopeScene():
+class UscopeScene:
     """
-    Replicate the common fluorescences microscopic image (frame or 'scene').
+    Replicate the common fluorescence microscopic image (frame or 'scene').
 
     This class simulates the bright objects with round and elongate shapes as the basic examples of imaged objects. \n
     The ratio behind development of this class - to get the ground truth images for image processing workflows tests. \n
@@ -46,7 +45,7 @@ class UscopeScene():
     max_pixel_value_uint8: int = 255; max_pixel_value_uint16: int = 65535; shape: tuple = (height, width)
     fluo_objects: list = []; shape_types = ['mixed', 'round', 'r', 'ellipse', 'el']
     __image_cleared: bool = True  # for tracking that the scene was cleared (zeroed)
-    __available_coordinates: list = []; __binary_placement_mask: list = None; denoised_image: np.ndarray = None
+    __available_coordinates: list = []; __binary_placement_mask: np.ndarray = None; denoised_image: np.ndarray = None
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8'):
@@ -65,7 +64,7 @@ class UscopeScene():
         Raises
         ------
         ValueError
-            If provided parameters are incosistent, e.g. width or height < 2.
+            If provided parameters are inconsistent, e.g. width or height < 2.
 
         Returns
         -------
@@ -108,13 +107,13 @@ class UscopeScene():
         size_std : Union[float, int, tuple]
             Standard deviation of mean size(-s).
         intensity_range : tuple
-            (Min, Max) intensities for randomized choise of the maximum intensity along the profile.
+            (Min, Max) intensities for randomized choice of the maximum intensity along the profile.
         n_objects : int, optional
             Number of generated objects. The default is 2.
         shapes : str, optional
             Implemented in FluorObj() shapes: 'round', 'ellipse' or 'mixed' them (randomly selected). The default is 'round'.
         image_type : Union[str, np.uint8, np.uint16, np.float64], optional
-            Image type of the scene on which the objects will be placed and casted to. The default is 'uint8'.
+            Image type of the scene on which the objects will be placed and cast to. The default is 'uint8'.
         verbose_info : bool, optional
             Flag for printing out verbose information about the generation progress (use it for many objects generation). The default is False.
 
@@ -247,7 +246,7 @@ class UscopeScene():
             fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
         return tuple(fl_objects)
 
-    # %% Randomly assigning coordinates for obejcts
+    # %% Randomly assigning coordinates for objects
     def set_random_places(self, fluo_objects: tuple = (), overlapping: bool = True, touching: bool = True,
                           only_within_scene: bool = False, verbose_info: bool = False) -> tuple:
         """
@@ -267,7 +266,7 @@ class UscopeScene():
             The default is True.
         only_within_scene : bool, optional
             If True, the objects will be placed completely within (inside) the scene. \n
-            If False, objects may lay partially outside of the scene. The default is False.
+            If False, objects may lay partially outside the scene. The default is False.
         verbose_info : bool, optional
             Printing out verbose information about performance of placement. The default is False.
 
@@ -313,7 +312,7 @@ class UscopeScene():
                         i_obj = random.randrange(i_smallest, i_largest, 1); j_obj = random.randrange(j_smallest, j_largest, 1)
                         # Not overlapping, below - place the largest object and create the mask for preventing the overlapping
                         if not overlapping:
-                            # Generate the meshgrid of all avalaible for placing coordinates (depending on the placement flag)
+                            # Generate the meshgrid of all available for placing coordinates (depending on the placement flag)
                             if not only_within_scene:
                                 self.__available_coordinates = [(i_a, j_a) for i_a in range(i_smallest, i_largest)
                                                                 for j_a in range(j_smallest, j_largest)]
@@ -328,7 +327,7 @@ class UscopeScene():
                                 for j in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border):
                                     if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
                                         self.__binary_placement_mask[i, j] = 1
-                            # Exclude the coordinates occupied by the placed object from the available choises for further placements
+                            # Exclude the coordinates occupied by the placed object from the available choices for further placements
                             coordinates_for_del = [(i_exc, j_exc) for i_exc in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border)
                                                    for j_exc in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border)]
                             for del_coord in coordinates_for_del:
@@ -387,7 +386,7 @@ class UscopeScene():
                                     available_correcting_coordinates.remove((i_obj, j_obj)); self.__available_coordinates.remove((i_obj, j_obj))
                                 except ValueError:
                                     pass
-                            # Check that object placed and if not, delete border pixels for placing (long lasting function)
+                            # Check that object placed and if not, delete border pixels for placing (long-lasting function)
                             if not overlapped:
                                 placed = True; break
                             else:
@@ -453,7 +452,7 @@ class UscopeScene():
             If True, will save (append) objects in the class attribute 'fluo_objects'. The default is True. \n
             Note that, if it's False, then before placing the objects, the scene will be cleared (stored before objects will be removed from it).
         save_only_objects_inside : bool, optional
-            Save in the class attribute ('fluo_objects') only objects that are inside of the image. The default is False.
+            Save in the class attribute ('fluo_objects') only objects that are inside the image. The default is False.
         rewrite_objects : bool, optional
             If True, it forces to substitute stored objects in the class attribute 'fluo_objects' with the provided ones. The default is False.
 
@@ -486,8 +485,8 @@ class UscopeScene():
                                         self.image[i, j] = max(self.image[i, j], fluo_obj.casted_profile[k, m])
                                 if self.__image_cleared:
                                     self.__image_cleared = False
-                            m += 1  # next column of the casted profile
-                        k += 1  # next row of the casted profile
+                            m += 1  # next column of the cast profile
+                        k += 1  # next row of the cast profile
             if save_objects:
                 l_fluo_objects = list(fluo_objects)  # conversion input tuple to the list
                 if save_only_objects_inside:
@@ -499,7 +498,7 @@ class UscopeScene():
 
     def spread_objects_on(self, fluo_objects: tuple):
         """
-        Compose 2 subsequent methods: self.put_objects_on(slef.set_random_places(fluo_objects), save_objects=True).
+        Compose 2 subsequent methods: self.put_objects_on(self.set_random_places(fluo_objects), save_objects=True).
 
         So, this method puts the provided objects, which are randomly spread on the scene, and saves them in the attribute.
 
@@ -525,7 +524,7 @@ class UscopeScene():
 
         """
         if len(self.fluo_objects) > 0 and self.__image_cleared:
-            self.put_objects_on(fluo_objects=self.fluo_objects, save_objects=False)
+            self.put_objects_on(fluo_objects=tuple(self.fluo_objects), save_objects=False)
         elif not self.__image_cleared:
             if len(self.__warn_message) == 0:
                 self.__warn_message = "The scene is not clear, cannot recreate the scene"
@@ -539,7 +538,6 @@ class UscopeScene():
             elif self.__warn_message == "There are no stored objects within this class instance":
                 self.__warn_message = ""
 
-
     # %% Scene manipulation
     def show_scene(self, str_id: str = "", color_map='viridis', unique_plot_id: bool = True):
         """
@@ -549,7 +547,7 @@ class UscopeScene():
         ----------
         str_id : str, optional
             Unique string id for plotting several plots with unique Figure() names. The default is "".
-        color_map, optional
+        color_map
             Color map acceptable by matplotlib.pyplot.cm. Fallback is viridis color map. The default is 'viridis'.
         unique_plot_id: bool, optional
             Flag for adding to plot name some random integer id for preventing plots overlapping. The default is True.
@@ -612,7 +610,7 @@ class UscopeScene():
         Parameters
         ----------
         seed : int, optional
-            Long integer for initializing pseudorandom generator for repeating generated sequencies. The default is None.
+            Long integer for initializing pseudorandom generator for repeating generated sequences. The default is None.
         mean_noise : Union[int, float], optional
             Mean for Gaussian noise intensity. The default is None.
         sigma_noise : Union[int, float], optional
@@ -641,7 +639,7 @@ class UscopeScene():
                 sigma_noise = 0.33*mean_noise  # 33% of the mean
             noisy_background = rng.normal(mean_noise, sigma_noise, size=self.image.shape)  # normally distributed noise on background
             noisy_background = np.where(noisy_background < 0.0, 0.0, noisy_background)  # check that all pixel values are positive
-            # Substitue the calculated exact pixel value with the Poisson distributed one due to the properties of commonly used cameras
+            # Substitute the calculated exact pixel value with the Poisson distributed one due to the properties of commonly used cameras
             h, w = self.image.shape; raw_pixels = np.zeros(shape=self.image.shape)
             if not self.__noise_added:
                 self.denoised_image = self.image.copy()  # copy initial scene without noise
@@ -681,7 +679,7 @@ class UscopeScene():
 
 
 # %% Object class definition
-class FluorObj():
+class FluorObj:
     """
     Modelling the fluorescent bright object with the specified type.
 
@@ -697,11 +695,11 @@ class FluorObj():
     # below - storing names of implemented computing functions for the define continuous shape
     __acceptable_shape_methods: list = ['gaussian', 'g', 'lorentzian', 'lor', 'derivative of logistic func.', 'dlogf', 'bump square',
                                         'bump2', 'bump cube', 'bump3', 'bump ^8', 'bump8', 'smooth circle', 'smcir', 'oversampled circle',
-                                        'ovcir', 'undersampled circle', 'uncir']
+                                        'ovcir', 'undersampled circle', 'uncir', 'circle', 'c']
     valuable_round_shapes: list = ['gaussian', 'derivative of logistic func.', 'bump cube', 'bump ^8', 'smooth circle']
     image_type = None; center_shifts: tuple = (0.0, 0.0)   # subpixel shift of the center of the object
-    casted_profile: np.ndarray = None  # casted normalized profile to the provided image type
-    __profile_croped: bool = False  # flag for setting if the profile was cropped (zero pixel rows / columns removed)
+    casted_profile: np.ndarray = None  # cast normalized profile to the provided image type
+    __profile_cropped: bool = False  # flag for setting if the profile was cropped (zero pixel rows / columns removed)
     external_upper_coordinates: tuple = (0, 0)  # external image coordinates of the upper left pixel
     __external_image_sizes: tuple = (0, 0)   # sizes of an external image coordinates of the upper left pixel
     within_image: bool = False  # flag for checking that the profile is still within the image
@@ -721,12 +719,12 @@ class FluorObj():
         center_shifts : tuple, optional
             Shifts in pixels of the object center, should be less than 1px. The default is (0.0, 0.0).
         shape_type : str, optional
-            Supporeted shape types: {self.__acceptable_shape_types}. \n
+            Supported shape types: {self.__acceptable_shape_types}. \n
             Currently implemented: 'round' or 'r' - for the circular bead object and 'ellipse' or 'el' - for the ellipse object.
             The default is 'round'.
         border_type : str, optional
             Type of intensity of the border pixels calculation. Supported border types: 'precise', 'pr', 'computed', 'co'. \n
-            The 'computed' or 'co' type should be accomponied with the specification of the shape method parameter. \n
+            The 'computed' or 'co' type should be accompanied with the specification of the shape method parameter. \n
             The 'precise' or 'pr' type corresponds to the developed counting area of the pixel laying within
             the border (e.g., circular) of an object. \n
             Note that 'computed' type can be used only for 'round' objects. The default is 'precise'.
@@ -800,6 +798,8 @@ class FluorObj():
                     self.explicit_shape_name = 'oversampled circle'
                 elif self.shape_method == 'uncir':
                     self.explicit_shape_name = 'undersampled circle'
+                elif self.shape_method == 'c':
+                    self.explicit_shape_name = 'circle'
             else:
                 raise ValueError(f"Provided shape comp. method '{shape_method}' not in acceptable list {self.__acceptable_shape_methods}")
         # Check that explicit shape name is not empty
@@ -836,7 +836,7 @@ class FluorObj():
 
         References
         ----------
-        Continuosly shaped objects are created by adapting the functions from:
+        Continuously shaped objects are created by adapting the functions from:
         [1] https://en.wikipedia.org/wiki/Bell-shaped_function
         'Precisely' shaped objects are created by the custom algorithm, which calculates part of an object still laying
         within the affected ('border') pixels.
@@ -862,12 +862,12 @@ class FluorObj():
             self.profile = discrete_shaped_ellipse(sizes, ellipse_angle, self.center_shifts)
         else:
             raise NotImplementedError("This set of input parameters hasn't yet been implemented")
-        self.__profile_croped = False  # set it to the default value, the profile is uncropped
+        self.__profile_cropped = False  # set it to the default value, the profile is uncropped
 
     def get_casted_shape(self, max_pixel_value: Union[int, float],
                          image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') -> Union[np.ndarray, None]:
         """
-        Calculate casted from the computed normalized object shape.
+        Calculate cast from the computed normalized object shape.
 
         Parameters
         ----------
@@ -884,7 +884,7 @@ class FluorObj():
         Returns
         -------
         numpy.ndarray | None (designated as Union)
-            Returns the casted profile or None if the normalized profile hasn't been calculated.
+            Returns the cast profile or None if the normalized profile hasn't been calculated.
 
         """
         if image_type not in UscopeScene.acceptable_img_types:
@@ -916,7 +916,7 @@ class FluorObj():
             2D cropped profile.
 
         """
-        if self.profile is not None and not self.__profile_croped:  # checking that the profile has been calculated and not cropped yet
+        if self.profile is not None and not self.__profile_cropped:  # checking that the profile has been calculated and not cropped yet
             m, n = self.profile.shape; i_start = 0; j_start = 0; i_end = m; j_end = n; border_found = False
             for i in range(m):
                 if np.max(self.profile[i, :]) > 0.0:
@@ -943,7 +943,7 @@ class FluorObj():
             if self.casted_profile is not None:
                 self.casted_profile = self.casted_profile[i_start:i_end, j_start:j_end]
             if i_start > 0 or j_start > 0 or i_end < m or j_end < n:
-                self.__profile_croped = True
+                self.__profile_cropped = True
         return self.profile
 
     # %% Plotting methods
@@ -951,7 +951,7 @@ class FluorObj():
         """
         Plot interactively the profile of the object computed by the get_shape() method along with the border of the object.
 
-        Please note that the border will be plotted if the the shape hadn't been cropped before.
+        Please note that the border will be plotted if the shape hadn't been cropped before.
 
         Parameters
         ----------
@@ -966,7 +966,7 @@ class FluorObj():
         if not plt.isinteractive():
             plt.ion()
         if self.profile is not None:
-            if self.__profile_croped:
+            if self.__profile_cropped:
                 naming = "Cropped Shape"
             else:
                 naming = "Shape"
@@ -975,7 +975,7 @@ class FluorObj():
             plt.figure(f"{naming} with parameters: {self.explicit_shape_name}, {self.border_type}, center: {self.center_shifts} {str_id}")
             axes_img = plt.imshow(self.profile, cmap=plt.cm.viridis, origin='upper'); plt.axis('off'); plt.colorbar(); plt.tight_layout()
             plot_patch = True  # flag for plotting the patch (Circle or Ellipse)
-            if not self.__profile_croped:
+            if not self.__profile_cropped:
                 m_center, n_center = self.profile.shape  # image sizes
                 if self.center_shifts[0] < 0.0 and (self.shape_type == "round" or self.shape_type == "r"):
                     m_center = m_center // 2 + self.center_shifts[0] + 1.0
@@ -997,9 +997,9 @@ class FluorObj():
                                                     edgecolor='red', facecolor='none', linewidth=1.75))
                     axes_img.axes.plot(m_center, n_center, marker='.', linewidth=3, color='red')
 
-    def plot_casted_shape(self, str_id: str = ""):
+    def plot_cast_shape(self, str_id: str = ""):
         """
-        Plot interactively the casted to the provided type profile of the object computed by the get_casted_shape() method.
+        Plot interactively the cast to the provided type profile of the object computed by the get_casted_shape() method.
 
         Parameters
         ----------
@@ -1066,9 +1066,9 @@ class FluorObj():
             h, w = self.profile.shape; h_image, w_image = self.__external_image_sizes
             i_border_check = False; j_border_check = False  # flags for overall checking
             # Below - basic check that the profile still is within image, if even its borders still are in
-            if (i < 0 and i + h >= 0) or (i >= 0 and i - h < h_image):
+            if (i < 0 <= i + h) or (i >= 0 and i - h < h_image):
                 i_border_check = True
-            if (j < 0 and j + w >= 0) or (j >= 0 and j - w < w_image):
+            if (j < 0 <= j + w) or (j >= 0 and j - w < w_image):
                 j_border_check = True
             # Additional check that pixels of a shape is still not zero within the image (touching the scene only by border pixels)
             if (i < 0 and j < 0) or (i > h_image and j > w_image):
@@ -1091,7 +1091,7 @@ class FluorObj():
             self.within_image = False  # explicit setting flag
         return self.within_image
 
-    # %% Rewritting dunder methods for implementing sorting logic
+    # %% Rewriting dunder methods for implementing sorting logic
     def __lt__(self, other) -> bool:
         """
         Implementation of '<' comparison operator for letting the default sorting method to work on list of instances.
@@ -1139,14 +1139,16 @@ class FluorObj():
         else:
             return False
 
+
 # %% Some tests
 if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
-    test_presice_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
+    test_precise_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
     test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False
     test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = False; test_various_noises = False; shifts = (-0.2, 0.44)
     test_cropping_shifted_circles = False; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
-    test_placing_circles = False  # testing speeded up placing algorithm
+    test_placing_circles = False  # testing speed up placing algorithm
+    prepare_docs_images = True  # for making sample images for preparing Readme file about this project
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -1165,11 +1167,11 @@ if __name__ == "__main__":
     # Testing cropping of shifted circles with precise borders
     if test_cropping_shifted_circles:
         gb16 = FluorObj(typical_size=3.75, center_shifts=shifts1); gb16.get_shape(); gb16.plot_shape()
-        gb16.get_casted_shape(max_pixel_value=201); gb16.crop_shape(); gb16.plot_shape(); gb16.plot_casted_shape()
+        gb16.get_casted_shape(max_pixel_value=201); gb16.crop_shape(); gb16.plot_shape(); gb16.plot_cast_shape()
         gb17 = FluorObj(typical_size=3.75, center_shifts=shifts2); gb17.get_shape(); gb17.crop_shape(); gb17.plot_shape()
         gb18 = FluorObj(typical_size=3.75, center_shifts=shifts3); gb18.get_shape(); gb18.plot_shape(); gb18.crop_shape(); gb18.plot_shape()
         gb20 = FluorObj(typical_size=3.75, center_shifts=shifts); gb20.get_shape(); gb20.plot_shape()
-        gb20.get_casted_shape(max_pixel_value=2068, image_type='uint16'); gb20.crop_shape(); gb20.plot_casted_shape()
+        gb20.get_casted_shape(max_pixel_value=2068, image_type='uint16'); gb20.crop_shape(); gb20.plot_cast_shape()
     # Testing the shifted from the center objects generation
     if test_computed_shifted_beads and not test_computed_centered_beads:
         gb1 = FluorObj(typical_size=2.0, border_type='co', shape_method='g', center_shifts=shifts); gb1.get_shape(); gb1.plot_shape()
@@ -1181,19 +1183,19 @@ if __name__ == "__main__":
         gb7 = FluorObj(typical_size=2.0, border_type='co', shape_method='smcir', center_shifts=shifts); gb7.get_shape(); gb7.plot_shape()
         gb9 = FluorObj(typical_size=2.0, border_type='co', shape_method='ovcir', center_shifts=shifts); gb9.get_shape(); gb9.plot_shape()
         gb10 = FluorObj(typical_size=2.0, border_type='co', shape_method='uncir', center_shifts=shifts); gb10.get_shape(); gb10.plot_shape()
-    if test_presice_shifted_beads:
+    if test_precise_shifted_beads:
         gb8 = FluorObj(typical_size=2.0, center_shifts=shifts); gb8.get_shape(); gb8.crop_shape(); gb8.plot_shape()
         if test_casting:
-            gb8.get_casted_shape(255, 'uint8'); gb8.plot_casted_shape()
+            gb8.get_casted_shape(255, 'uint8'); gb8.plot_cast_shape()
     # Test of ellipse shaped objects generation
     if test_ellipse_centered:
         gb11 = FluorObj(shape_type='ellipse', typical_size=(4.4, 2.5, np.pi/3)); gb11.get_shape(); gb11.plot_shape()
         if test_casting:
-            gb11.get_casted_shape(255, 'uint8'); gb11.plot_casted_shape()
+            gb11.get_casted_shape(255, 'uint8'); gb11.plot_cast_shape()
     if test_ellipse_shifted:
         gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(shifts); gb12.crop_shape(); gb12.plot_shape()
         if test_casting:
-            gb12.get_casted_shape(255, 'uint8'); gb12.plot_casted_shape()
+            gb12.get_casted_shape(255, 'uint8'); gb12.plot_cast_shape()
     # Testing of cropping
     if test_cropped_shapes:
         gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(shifts); gb12.plot_shape()
@@ -1257,3 +1259,9 @@ if __name__ == "__main__":
         scene14.put_objects_on(objs12_pl2, save_only_objects_inside=True); scene14.show_scene("Circles partially within scene")
         scene15 = UscopeScene(width=41, height=41, image_type='uint16'); objs12_pl3 = scene14.set_random_places(objs12, verbose_info=True)
         scene15.put_objects_on(objs12_pl3, save_only_objects_inside=True); scene15.show_scene("Circles default parameters")
+    # Preparing images for the documentation
+    if prepare_docs_images:
+        objs1 = FluorObj(typical_size=2.0, border_type="computed", shape_method="oversampled circle")
+        objs2 = FluorObj(typical_size=2.0, border_type="computed", shape_method="circle")
+        objs3 = FluorObj(typical_size=2.0, border_type="computed", shape_method="undersampled circle")
+        objs1.get_shape(); objs1.plot_shape(); objs2.get_shape(); objs2.plot_shape(); objs3.get_shape(); objs3.plot_shape()

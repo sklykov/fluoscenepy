@@ -1,6 +1,6 @@
 # My specs
 # docs/
-# Docs/
+Docs/
 Documents/
 *.doc
 *.docx
@@ -9,7 +9,7 @@ Documents/
 *.rtf
 *.jpg
 *.jpeg
-*.png
+# *.png
 *.tiff
 *.tif
 *.pdf
