@@ -818,6 +818,25 @@ class FluorObj:
             else:
                 raise ValueError(f"One of the shifts '{center_shifts}' are more than 1px, but they are expected to be in the subpixel range")
 
+    def get_shaping_functions(self) -> str:
+        """
+        Print out the implemented methods acceptable for the 'shape_method' parameter.
+
+        Returns
+        -------
+        str
+            Printed out composed informational string.
+
+        """
+        methods = ""; i = 0
+        while i <= len(self.__acceptable_shape_methods)-1:
+            methods += "'" + self.__acceptable_shape_methods[i] + "'" + " or " + "'" + self.__acceptable_shape_methods[i+1] + "'" + "\n"
+            i += 2
+        info_str = ("The implemented types of continuous bell shape functions or acceptable variables for the 'shape_method' parameter "
+                    + "(first - the long naming followed by the shortened version): \n" + methods)
+        print(info_str, flush=True)
+        return info_str
+
     # %% Calculate and plot shape
     def get_shape(self, center_shifts: tuple = None) -> np.ndarray:
         """
@@ -947,7 +966,7 @@ class FluorObj:
         return self.profile
 
     # %% Plotting methods
-    def plot_shape(self, str_id: str = ""):
+    def plot_shape(self, str_id: str = "", color_map='viridis'):
         """
         Plot interactively the profile of the object computed by the get_shape() method along with the border of the object.
 
@@ -957,6 +976,8 @@ class FluorObj:
         ----------
         str_id : str, optional
             Unique string id for plotting several plots with unique Figure() names. The default is "".
+        color_map
+            Color map acceptable by matplotlib.pyplot.cm. Fallback is viridis color map. The default is 'viridis'.
 
         Returns
         -------
@@ -973,7 +994,11 @@ class FluorObj:
             if len(str_id) == 0:
                 str_id = str(random.randint(1, 1000))
             plt.figure(f"{naming} with parameters: {self.explicit_shape_name}, {self.border_type}, center: {self.center_shifts} {str_id}")
-            axes_img = plt.imshow(self.profile, cmap=plt.cm.viridis, origin='upper'); plt.axis('off'); plt.colorbar(); plt.tight_layout()
+            try:
+                axes_img = plt.imshow(self.profile, cmap=color_map, origin='upper')
+            except ValueError:
+                axes_img = plt.imshow(self.profile, cmap=plt.cm.viridis, origin='upper')
+            plt.axis('off'); plt.colorbar(); plt.tight_layout()
             plot_patch = True  # flag for plotting the patch (Circle or Ellipse)
             if not self.__profile_cropped:
                 m_center, n_center = self.profile.shape  # image sizes
@@ -1265,3 +1290,6 @@ if __name__ == "__main__":
         objs2 = FluorObj(typical_size=2.0, border_type="computed", shape_method="circle")
         objs3 = FluorObj(typical_size=2.0, border_type="computed", shape_method="undersampled circle")
         objs1.get_shape(); objs1.plot_shape(); objs2.get_shape(); objs2.plot_shape(); objs3.get_shape(); objs3.plot_shape()
+        objs4 = FluorObj(typical_size=2.0); objs4.get_shape(); objs4.plot_shape()
+        objs5 = FluorObj(typical_size=4.8); objs5.get_shape(); objs5.plot_shape(); objs5.get_shaping_functions()
+        objs6 = FluorObj(typical_size=4.8, border_type="co", shape_method="bump3"); objs6.get_shape(); objs6.plot_shape()
