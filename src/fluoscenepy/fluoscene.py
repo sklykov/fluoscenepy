@@ -620,6 +620,7 @@ class UscopeScene:
         ----------
         [1] "Imaging in focus: An introduction to denoising bioimages in the era of deep learning", R.F. Laine,
         G. Jacquemet, A. Krull (2021)
+        [2] Online Resource: https://bioimagebook.github.io/chapters/3-fluorescence/3-formation_noise/formation_noise.html
 
         Returns
         -------
@@ -1173,7 +1174,8 @@ if __name__ == "__main__":
     test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = False; test_various_noises = False; shifts = (-0.2, 0.44)
     test_cropping_shifted_circles = False; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
     test_placing_circles = False  # testing speed up placing algorithm
-    prepare_docs_images = True  # for making sample images for preparing Readme file about this project
+    prepare_centered_docs_images = False  # for making centered sample images for preparing Readme file about this project
+    prepare_shifted_docs_images = True; shifts_sample = (0.24, 0.0)  # for making shifted sample images for preparing Readme
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -1285,7 +1287,7 @@ if __name__ == "__main__":
         scene15 = UscopeScene(width=41, height=41, image_type='uint16'); objs12_pl3 = scene14.set_random_places(objs12, verbose_info=True)
         scene15.put_objects_on(objs12_pl3, save_only_objects_inside=True); scene15.show_scene("Circles default parameters")
     # Preparing images for the documentation
-    if prepare_docs_images:
+    if prepare_centered_docs_images:
         objs1 = FluorObj(typical_size=2.0, border_type="computed", shape_method="oversampled circle")
         objs2 = FluorObj(typical_size=2.0, border_type="computed", shape_method="circle")
         objs3 = FluorObj(typical_size=2.0, border_type="computed", shape_method="undersampled circle")
@@ -1293,3 +1295,7 @@ if __name__ == "__main__":
         objs4 = FluorObj(typical_size=2.0); objs4.get_shape(); objs4.plot_shape()
         objs5 = FluorObj(typical_size=4.8); objs5.get_shape(); objs5.plot_shape(); objs5.get_shaping_functions()
         objs6 = FluorObj(typical_size=4.8, border_type="co", shape_method="bump3"); objs6.get_shape(); objs6.plot_shape()
+    if prepare_shifted_docs_images:
+        objs7 = FluorObj(typical_size=2.0, center_shifts=shifts_sample, border_type="computed", shape_method="circle")
+        objs8 = FluorObj(typical_size=2.0, center_shifts=shifts_sample)
+        objs7.get_shape(); objs7.plot_shape(); objs8.get_shape(); objs8.plot_shape()

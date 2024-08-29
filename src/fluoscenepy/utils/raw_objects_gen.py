@@ -12,8 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import e, cos, sin
 from typing import Union  # for making type hints for the package compliant with Python >= 3.8
-# from matplotlib.patches import Circle
-from matplotlib.patches import Ellipse
+from matplotlib.patches import Circle, Ellipse
 
 
 # %% Utility functions
@@ -121,7 +120,7 @@ def make_sample(radius: float, center_shift: tuple, max_intensity=255, test_plot
                     circle_arc_area1 = np.where(distances <= radius, 0.001, 0.0)
                     # print(circle_arc_area1.shape)
                     if np.max(circle_arc_area1) > 0.0 and radius <= 2.0 and test_plots:
-                        plt.figure(f"{i, j}"); plt.imshow(circle_arc_area1)
+                        plt.figure(f"{i, j}"); plt.imshow(circle_arc_area1); plt.imshow(circle_arc_area1); plt.axis('off'); plt.tight_layout()
                     # print(np.max(circle_arc_area1), np.min(circle_arc_area1))
                     # for y in range(size_subareas):
                     #     for x in range(size_subareas):
@@ -136,7 +135,7 @@ def make_sample(radius: float, center_shift: tuple, max_intensity=255, test_plot
                         print(circle_arc_area1.shape)
                         print("Overflowed value", S1, "sum of pixels inside of the intersection:", np.sum(circle_arc_area1), "norm.:", normalization)
                         if test_plots:
-                            plt.figure(f"[{i, j}]"); plt.imshow(circle_arc_area1)
+                            plt.figure(f"[{i, j}]"); plt.imshow(circle_arc_area1); plt.tight_layout()
                         S1 = 1.0
                     print(f"Found ratio for the pixel [{i, j}]:", S1); pixel_value = S1
                     # Commented out below - debugging of the method, proving the calculation is right, kept for checking
@@ -527,15 +526,11 @@ __all__ = ['continuous_shaped_bead', 'discrete_shaped_bead', 'discrete_shaped_el
 
 # %% Tests
 if __name__ == "__main__":
-    test_disk_show = False; test_ellipse_centered = True; test_ellipse_shifted = True; figsizes = (6.5, 6.5); plt.close('all')
+    test_disk_show = False; test_ellipse_centered = False; test_ellipse_shifted = False; figsizes = (6.5, 6.5); plt.close('all')
+    prepare_sample_image_intersections = True  # for making intersection graph for the README file
     # Testing disk (circle or bead) representation
     if test_disk_show:
-        i_shift = 0.23; j_shift = -0.591; disk_r = 6.0
-        # disk1 = make_sample(radius=disk_r, center_shift=(i_shift, j_shift), test_plots=False)
-        # plt.figure(figsize=figsizes); axes_img = plt.imshow(disk1, cmap=plt.cm.viridis); plt.tight_layout()
-        # m_center, n_center = disk1.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
-        # axes_img.axes.add_patch(Circle((n_center, m_center), disk_r, edgecolor='red', facecolor='none'))
-        r = np.arange(start=0.0, stop=1.3, step=0.02)
+        i_shift = 0.23; j_shift = -0.591; disk_r = 6.0; r = np.arange(start=0.0, stop=1.3, step=0.02)
         profile1_f = profile1(r, 1.0)  # normal gaussian
         profile2_f = profile2(r)  # discontinuous function
         profile3_f = profile3(r, 1.0)  # lorentzian
@@ -565,3 +560,8 @@ if __name__ == "__main__":
         m_center, n_center = ellipse_centered.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
         axes_img.axes.add_patch(Ellipse((n_center, m_center), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
         axes_img.axes.plot(n_center, m_center, marker='.', linewidth=3.5, color='red')
+    if prepare_sample_image_intersections:
+        i_shift = 0.0; j_shift = 0.0; disk_r = 1.0; disk1 = make_sample(radius=disk_r, center_shift=(i_shift, j_shift), test_plots=True)
+        plt.figure(figsize=figsizes); axes_img = plt.imshow(disk1, cmap=plt.cm.viridis); plt.tight_layout()
+        m_center, n_center = disk1.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
+        axes_img.axes.add_patch(Circle((n_center, m_center), disk_r, edgecolor='red', facecolor='none'))
