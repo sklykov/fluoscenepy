@@ -1175,7 +1175,8 @@ if __name__ == "__main__":
     test_cropping_shifted_circles = False; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
     test_placing_circles = False  # testing speed up placing algorithm
     prepare_centered_docs_images = False  # for making centered sample images for preparing Readme file about this project
-    prepare_shifted_docs_images = True; shifts_sample = (0.24, 0.0)  # for making shifted sample images for preparing Readme
+    prepare_shifted_docs_images = False; shifts_sample = (0.24, 0.0)  # for making shifted sample images for preparing Readme
+    prepare_scene_samples = True  # for preparing illustrative scenes with placed on them objects
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -1299,3 +1300,5 @@ if __name__ == "__main__":
         objs7 = FluorObj(typical_size=2.0, center_shifts=shifts_sample, border_type="computed", shape_method="circle")
         objs8 = FluorObj(typical_size=2.0, center_shifts=shifts_sample)
         objs7.get_shape(); objs7.plot_shape(); objs8.get_shape(); objs8.plot_shape()
+    if prepare_scene_samples:
+        pass

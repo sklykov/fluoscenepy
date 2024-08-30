@@ -43,6 +43,36 @@ def distance_f(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.n
 
 def ellipse_equation(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float],
                      j_centre: Union[int, float], a: Union[int, float], b: Union[int, float], angle: Union[int, float]) -> float:
+    """
+    Calculate the ellipse equation ratio for the defining if the point (i_px, j_px) lays inside of an ellipse.
+
+    Parameters
+    ----------
+    i_px : Union[int, float, np.ndarray]
+        Point (pixel) coordinate i.
+    j_px : Union[int, float, np.ndarray]
+        Point (pixel) coordinate j.
+    i_centre : Union[int, float]
+        i coordinate of the center of ellipse (center of mass).
+    j_centre : Union[int, float]
+        j coordinate of the center of ellipse (center of mass).
+    a : Union[int, float]
+        a ellipse axis in pixels.
+    b : Union[int, float]
+        b ellipse axis in pixels.
+    angle : Union[int, float]
+        angle between a axis and X axis.
+
+    Reference
+    ---------
+    https://en.wikipedia.org/wiki/Ellipse
+
+    Returns
+    -------
+    float
+        Calculated equation (ratio) for the point.
+
+    """
     angle = -angle  # makes the angle assignment consistent with the counter-clockwise count
     # Source for the equations below: https://en.wikipedia.org/wiki/Ellipse
     a_h2 = 0.25*a*a; b_h2 = 0.25*b*b  # half of axis (width and height) are used in the equations
@@ -370,6 +400,7 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
     return img
 
 
+# TODO: test accelaration of the method below by using numba
 def discrete_shaped_bead(r: float, center_shifts: tuple) -> np.ndarray:
     """
     Calculate the 2D shape of bead with the border pixel intensities defined from the counting area of these pixels within circle radius.
