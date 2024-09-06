@@ -16,11 +16,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Circle, Ellipse
 
+try:
+    import numba
+    numba_installed = True
+except ModuleNotFoundError:
+    numba_installed = False
+
 # %% Local (package-scoped) imports
 if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
     from utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
+    if numba_installed:
+        from utils.compiled_objects_gen import discrete_shaped_bead_acc
 else:
     from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
+    if numba_installed:
+        from .utils.compiled_objects_gen import discrete_shaped_bead_acc
 
 
 # %% Scene (image) class def.
@@ -839,7 +849,7 @@ class FluorObj:
         return info_str
 
     # %% Calculate and plot shape
-    def get_shape(self, center_shifts: tuple = None) -> np.ndarray:
+    def get_shape(self, center_shifts: tuple = None, accelerated: bool = False) -> np.ndarray:
         """
         Calculate and return 2D intensity normalized (to the range [0.0, 1.0]) distribution of the object shape.
 
@@ -876,7 +886,12 @@ class FluorObj:
         if (self.shape_type == "round" or self.shape_type == "r") and (self.border_type == "computed" or self.border_type == "co"):
             self.profile = continuous_shaped_bead(self.radius, self.center_shifts, bead_type=self.shape_method)
         elif (self.shape_type == "round" or self.shape_type == "r") and (self.border_type == "precise" or self.border_type == "pr"):
-            self.profile = discrete_shaped_bead(self.radius, self.center_shifts)
+            if not accelerated:
+               self.profile = discrete_shaped_bead(self.radius, self.center_shifts)
+            elif numba_installed:
+                self.profile = discrete_shaped_bead_acc(self.radius, self.center_shifts)
+            else:
+                self.profile = discrete_shaped_bead(self.radius, self.center_shifts)
         elif self.shape_type == "ellipse" or self.shape_type == "el":
             sizes = (self.typical_sizes[0], self.typical_sizes[1]); ellipse_angle = self.typical_sizes[2]
             self.profile = discrete_shaped_ellipse(sizes, ellipse_angle, self.center_shifts)
@@ -1173,6 +1188,7 @@ if __name__ == "__main__":
     test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False
     test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = False; test_various_noises = False; shifts = (-0.2, 0.44)
     test_cropping_shifted_circles = False; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
+    test_compiling_acceleration = True  # testing the acceleration through compilation using numba
     test_placing_circles = False  # testing speed up placing algorithm
     prepare_centered_docs_images = False  # for making centered sample images for preparing Readme file about this project
     prepare_shifted_docs_images = False; shifts_sample = (0.24, 0.0)  # for making shifted sample images for preparing Readme
@@ -1302,3 +1318,21 @@ if __name__ == "__main__":
         objs7.get_shape(); objs7.plot_shape(); objs8.get_shape(); objs8.plot_shape()
     if prepare_scene_samples:
         pass
+    if test_compiling_acceleration:
+        objs10 = FluorObj(typical_size=2.0); objs10.get_shape(accelerated=True)  # first run for forcing compilation by numba
+        # Computing discrete shape with the attempt to accelerate computation by using numba compilation in the module
+        t_ov_1 = time.perf_counter(); objs10 = FluorObj(typical_size=12.0); objs10.get_shape(accelerated=True); objs10.plot_shape()
+        elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
+        if elapsed_time_ov > 1000:
+            elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)
+            print(f"Compiled shape computation took {elapsed_time_ov} seconds", flush=True)
+        else:
+            print(f"Compiled shape computation took {elapsed_time_ov} milliseconds", flush=True)
+        # Standard computing discrete shape
+        t_ov_1 = time.perf_counter(); objs11 = FluorObj(typical_size=12.0); objs11.get_shape(); objs11.plot_shape()
+        elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
+        if elapsed_time_ov > 1000:
+            elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)
+            print(f"Standard shape computation took {elapsed_time_ov} seconds", flush=True)
+        else:
+            print(f"Standard shape computation took {elapsed_time_ov} milliseconds", flush=True)

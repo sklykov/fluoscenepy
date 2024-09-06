@@ -1,23 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-Raw script for various object profile generation.
+Script with various object profiles generation functions.
 
 @author: Sergei Klykov
 @licence: MIT, @year: 2024
 
 """
-
 # %% Imports
 import numpy as np
 import matplotlib.pyplot as plt
 from math import e, cos, sin
 from typing import Union  # for making type hints for the package compliant with Python >= 3.8
 from matplotlib.patches import Circle, Ellipse
+# Note that type hints line int | float works for Python >= 3.10
 
 
 # %% Utility functions
-# Note that type hints line int | float works for Python >= 3.10
-def distance_f(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float], j_centre: Union[int, float]):
+def distance_f(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float],
+               j_centre: Union[int, float]) -> Union[float, np.ndarray]:
     """
     Calculate the distances for pixels.
 
@@ -400,7 +400,6 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
     return img
 
 
-# TODO: test accelaration of the method below by using numba
 def discrete_shaped_bead(r: float, center_shifts: tuple) -> np.ndarray:
     """
     Calculate the 2D shape of bead with the border pixel intensities defined from the counting area of these pixels within circle radius.
