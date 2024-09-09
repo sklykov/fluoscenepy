@@ -44,7 +44,7 @@ def distance_f(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.n
 def ellipse_equation(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float],
                      j_centre: Union[int, float], a: Union[int, float], b: Union[int, float], angle: Union[int, float]) -> float:
     """
-    Calculate the ellipse equation ratio for the defining if the point (i_px, j_px) lays inside of an ellipse.
+    Calculate the ellipse equation ratio for the defining if the point (i_px, j_px) lays inside an ellipse.
 
     Parameters
     ----------
@@ -57,11 +57,11 @@ def ellipse_equation(i_px: Union[int, float, np.ndarray], j_px: Union[int, float
     j_centre : Union[int, float]
         j coordinate of the center of ellipse (center of mass).
     a : Union[int, float]
-        a ellipse axis in pixels.
+        'a' ellipse axis in pixels.
     b : Union[int, float]
-        b ellipse axis in pixels.
+        'b' ellipse axis in pixels.
     angle : Union[int, float]
-        angle between a axis and X axis.
+        angle between 'a' axis and 'X' axis.
 
     Reference
     ---------
@@ -511,7 +511,6 @@ def discrete_shaped_ellipse(sizes: tuple, angle: float, center_shifts: tuple, ve
     img = np.zeros(dtype=np.float32, shape=(max_size, max_size))  # creating by default float image, normalized to 1.0 as the max intensity
     i_img_center = max_size // 2; j_img_center = max_size // 2
     i_center = i_img_center + y_shift; j_center = j_img_center + x_shift
-    # net_shift = round(0.5*np.sqrt(y_shift*y_shift + x_shift*x_shift), 6)  # calculation the net shift of the picture center
     # Calculating the intensity distribution pixelwise with strict definition
     size_subareas = 626  # number of subareas + 1 that can make defined number of steps, like np.linspace(0, 1, 11)
     single_point_value = 1.0/(size_subareas-1)  # single point non-zero value used below for finding number of points within circle border

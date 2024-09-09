@@ -72,4 +72,10 @@ def test_objects_generation():
     scene = UscopeScene(width=55, height=42, image_type='uint16')
     placed_circles = scene.set_random_places(circles, overlapping=False, touching=False, only_within_scene=True)
     scene.put_objects_on(placed_circles, save_only_objects_inside=True)
-    assert len(placed_circles) <= len(circles), "Number of placed object more than number of objects"
+    assert len(placed_circles) <= len(circles), "Number of placed circles more than number of generated circles"
+    precise_objs = UscopeScene.get_random_objects(mean_size=(3.81, 2.36), size_std=(0.46, 0.22), shapes='mixed',
+                                                  intensity_range=(180, 251), n_objects=4)
+    scene2 = UscopeScene(width=64, height=52)
+    placed_objs = scene2.set_random_places(precise_objs, overlapping=False, touching=False, only_within_scene=True)
+    scene2.put_objects_on(placed_objs, save_only_objects_inside=True)
+    assert len(placed_objs) <= len(precise_objs), "Number of placed objects more than number of generated 'precise' objects"

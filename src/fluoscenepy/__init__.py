@@ -13,4 +13,4 @@ elif __name__ == "fluoscenepy":
 # Automatically bring the main class and some methods to the name space when one of import command is used commands:
 # 1) from fluoscenepy import UscopeScene, ... functions; 2) from fluoscenepy import *
 if __name__ != "__main__" and __name__ != "__mp_main__":
-    from .fluoscene import UscopeScene, FluorObj  # main class auto export on the import call for this package
+    from .fluoscene import UscopeScene, FluorObj, force_precompilation  # main class auto export on the import call for this package

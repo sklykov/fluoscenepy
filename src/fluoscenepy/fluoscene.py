@@ -26,11 +26,11 @@ except ModuleNotFoundError:
 if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
     from utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
     if numba_installed:
-        from utils.compiled_objects_gen import discrete_shaped_bead_acc
+        from utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
 else:
     from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
     if numba_installed:
-        from .utils.compiled_objects_gen import discrete_shaped_bead_acc
+        from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
 
 
 # %% Scene (image) class def.
@@ -103,7 +103,7 @@ class UscopeScene:
     @classmethod
     def get_random_objects(cls, mean_size: Union[float, int, tuple], size_std: Union[float, int, tuple], intensity_range: tuple,
                            n_objects: int = 2, shapes: str = 'round', image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
-                           verbose_info: bool = False) -> tuple:
+                           verbose_info: bool = False, accelerated: bool = False) -> tuple:
         """
         Generate objects with randomized shape sizes, for shapes: 'round', 'ellipse', 'mixed' - last one for randomized choice
         between 2 first ones.
@@ -126,6 +126,8 @@ class UscopeScene:
             Image type of the scene on which the objects will be placed and cast to. The default is 'uint8'.
         verbose_info : bool, optional
             Flag for printing out verbose information about the generation progress (use it for many objects generation). The default is False.
+        accelerated : bool, optional
+            Flag for attempting acceleration of objects shape calculation by using 'numba' library compilation.
 
         Raises
         ------
@@ -186,8 +188,8 @@ class UscopeScene:
                 if radius < 0.5:
                     radius += random.uniform(a=0.6-radius, b=0.6)
                 # Generating the object and calculating its shape, cast and crop it
-                fl_object = FluorObj(typical_size=radius, center_shifts=(i_shift, j_shift)); fl_object.get_shape(); fl_object.crop_shape()
-                fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
+                fl_object = FluorObj(typical_size=radius, center_shifts=(i_shift, j_shift)); fl_object.get_shape(accelerated=accelerated)
+                fl_object.crop_shape(); fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
             # Ellipse shaped object generation
             elif shape_type == 'ellipse' or shape_type == 'el':
                 a, b = mean_size; a_std, b_std = size_std  # unpacking tuples assuming 2 of sizes packed there
@@ -205,7 +207,7 @@ class UscopeScene:
                     else:
                         b += random.uniform(1.1-b, 1.1)
                 fl_object = FluorObj(typical_size=(a_r, b_r, angle), center_shifts=(i_shift, j_shift), shape_type='ellipse')
-                fl_object.get_shape(); fl_object.crop_shape()  # calculate normalized shape and crop it
+                fl_object.get_shape(accelerated=accelerated); fl_object.crop_shape()  # calculate normalized shape and crop it
                 fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
             if verbose_info:
                 elapsed_time = int(round(1000.0*(time.perf_counter() - t1), 0))
@@ -226,6 +228,30 @@ class UscopeScene:
     @staticmethod
     def get_round_objects(mean_size: float, size_std: float, intensity_range: tuple, n_objects: int = 2, shape_r_type: str = 'mixed',
                           image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') -> tuple:
+        """
+        Generate round shaped objects (as FluorObj class instances) with continuous shapes (see FluorObj class documentation).
+
+        Parameters
+        ----------
+        mean_size : float
+            Mean size of objects in pixels.
+        size_std : float
+            Standard deviation of objects sizes.
+        intensity_range : tuple
+            Intensity range for selection of maximum object intensity.
+        n_objects : int, optional
+            Number of generated objects. The default is 2.
+        shape_r_type : str, optional
+            Acceptable by FluorObj class round and computed shape types. The default is 'mixed'.
+        image_type : Union[str, np.uint8, np.uint16, np.float64], optional
+            Type of image used for a scene. The default is 'uint8'.
+
+        Returns
+        -------
+        tuple
+            Generated objects.
+
+        """
         fl_objects = []; min_intensity, max_intensity = intensity_range
         shape_types = FluorObj.valuable_round_shapes[:]; random.shuffle(shape_types)
         for i in range(n_objects):
@@ -858,6 +884,9 @@ class FluorObj:
         ----------
         center_shifts : tuple, optional
             Shifts in pixels of the object center, should be less than 1px. The default is None.
+        accelerated : bool, optional
+            Accelerate the computation by using numba library compilation utilities.
+            If True, will raise warning if the numba library hasn't been installed in the environment. The default is False.
 
         Raises
         ------
@@ -887,14 +916,25 @@ class FluorObj:
             self.profile = continuous_shaped_bead(self.radius, self.center_shifts, bead_type=self.shape_method)
         elif (self.shape_type == "round" or self.shape_type == "r") and (self.border_type == "precise" or self.border_type == "pr"):
             if not accelerated:
-               self.profile = discrete_shaped_bead(self.radius, self.center_shifts)
+                self.profile = discrete_shaped_bead(self.radius, self.center_shifts)
             elif numba_installed:
                 self.profile = discrete_shaped_bead_acc(self.radius, self.center_shifts)
             else:
+                if accelerated and not numba_installed:
+                    __warn_message = "Acceleration isn't possible because 'numba' library not installed in the current environment"
+                    warnings.warn(__warn_message)
                 self.profile = discrete_shaped_bead(self.radius, self.center_shifts)
         elif self.shape_type == "ellipse" or self.shape_type == "el":
             sizes = (self.typical_sizes[0], self.typical_sizes[1]); ellipse_angle = self.typical_sizes[2]
-            self.profile = discrete_shaped_ellipse(sizes, ellipse_angle, self.center_shifts)
+            if not accelerated:
+                self.profile = discrete_shaped_ellipse(sizes, ellipse_angle, self.center_shifts)
+            elif numba_installed:
+                self.profile = discrete_shaped_ellipse_acc(sizes, ellipse_angle, self.center_shifts)
+            else:
+                if accelerated and not numba_installed:
+                    __warn_message = "Acceleration isn't possible because 'numba' library not installed in the current environment"
+                    warnings.warn(__warn_message)
+                self.profile = discrete_shaped_ellipse(sizes, ellipse_angle, self.center_shifts)
         else:
             raise NotImplementedError("This set of input parameters hasn't yet been implemented")
         self.__profile_cropped = False  # set it to the default value, the profile is uncropped
@@ -1181,18 +1221,36 @@ class FluorObj:
             return False
 
 
-# %% Some tests
+# %% Overall utility functions
+def force_precompilation():
+    """
+    Force compilation of computing functions for round and ellipse 'precise' shaped objects.
+
+    Returns
+    -------
+    None.
+
+    """
+    if numba_installed:
+        probe_obj = FluorObj(typical_size=2.0); probe_obj.get_shape(accelerated=True); del probe_obj  # for round shape
+        probe_obj = FluorObj(shape_type='ellipse', typical_size=(2.65, 2.0, np.pi/6.0)); probe_obj.get_shape(accelerated=True); del probe_obj
+    else:
+        __warn_message = "Acceleration isn't possible because 'numba' library not installed in the current environment"
+        warnings.warn(__warn_message)
+
+
+# %% Tests of different scenarios
 if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_precise_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
     test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False
     test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = False; test_various_noises = False; shifts = (-0.2, 0.44)
     test_cropping_shifted_circles = False; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
-    test_compiling_acceleration = True  # testing the acceleration through compilation using numba
+    test_compiling_acceleration = False  # testing the acceleration through compilation using numba
     test_placing_circles = False  # testing speed up placing algorithm
     prepare_centered_docs_images = False  # for making centered sample images for preparing Readme file about this project
     prepare_shifted_docs_images = False; shifts_sample = (0.24, 0.0)  # for making shifted sample images for preparing Readme
-    prepare_scene_samples = True  # for preparing illustrative scenes with placed on them objects
+    prepare_scene_samples = False  # for preparing illustrative scenes with placed on them objects
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -1240,7 +1298,7 @@ if __name__ == "__main__":
         gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(shifts); gb12.crop_shape(); gb12.plot_shape()
         if test_casting:
             gb12.get_casted_shape(255, 'uint8'); gb12.plot_cast_shape()
-    # Testing of cropping
+    # Testing cropping of shifted ellipse
     if test_cropped_shapes:
         gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(shifts); gb12.plot_shape()
     # Testing of putting the manually generated objects on the scene
@@ -1303,7 +1361,7 @@ if __name__ == "__main__":
         scene14.put_objects_on(objs12_pl2, save_only_objects_inside=True); scene14.show_scene("Circles partially within scene")
         scene15 = UscopeScene(width=41, height=41, image_type='uint16'); objs12_pl3 = scene14.set_random_places(objs12, verbose_info=True)
         scene15.put_objects_on(objs12_pl3, save_only_objects_inside=True); scene15.show_scene("Circles default parameters")
-    # Preparing images for the documentation
+    # Preparing images for the documentation (README in the project repo)
     if prepare_centered_docs_images:
         objs1 = FluorObj(typical_size=2.0, border_type="computed", shape_method="oversampled circle")
         objs2 = FluorObj(typical_size=2.0, border_type="computed", shape_method="circle")
@@ -1317,22 +1375,49 @@ if __name__ == "__main__":
         objs8 = FluorObj(typical_size=2.0, center_shifts=shifts_sample)
         objs7.get_shape(); objs7.plot_shape(); objs8.get_shape(); objs8.plot_shape()
     if prepare_scene_samples:
-        pass
+        force_precompilation()  # forcing precompilation by numba
+        samples1 = UscopeScene.get_random_objects(mean_size=(9.11, 6.56), size_std=(1.15, 0.82), shapes='mixed', intensity_range=(185, 252),
+                                                  n_objects=12, verbose_info=True, accelerated=True)
+        scene_s = UscopeScene(width=72, height=64)
+        samples1_pl = scene_s.set_random_places(samples1, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
+        scene_s.put_objects_on(samples1_pl, save_only_objects_inside=True); scene_s.show_scene("Scene without noise", color_map="gray")
+        scene_s.add_noise(); scene_s.show_scene("Scene with added noise (default parameters)", color_map="gray")
+    # Testing acceleration by using numba compilation in the imported module
     if test_compiling_acceleration:
-        objs10 = FluorObj(typical_size=2.0); objs10.get_shape(accelerated=True)  # first run for forcing compilation by numba
-        # Computing discrete shape with the attempt to accelerate computation by using numba compilation in the module
-        t_ov_1 = time.perf_counter(); objs10 = FluorObj(typical_size=12.0); objs10.get_shape(accelerated=True); objs10.plot_shape()
-        elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
-        if elapsed_time_ov > 1000:
-            elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)
-            print(f"Compiled shape computation took {elapsed_time_ov} seconds", flush=True)
-        else:
-            print(f"Compiled shape computation took {elapsed_time_ov} milliseconds", flush=True)
-        # Standard computing discrete shape
-        t_ov_1 = time.perf_counter(); objs11 = FluorObj(typical_size=12.0); objs11.get_shape(); objs11.plot_shape()
-        elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
-        if elapsed_time_ov > 1000:
-            elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)
-            print(f"Standard shape computation took {elapsed_time_ov} seconds", flush=True)
-        else:
-            print(f"Standard shape computation took {elapsed_time_ov} milliseconds", flush=True)
+        force_precompilation()  # force precompilation of functions by numba
+        # Repeat checks twice for repeatability
+        for i in range(2):
+            # Computing discrete round shape with the attempt to accelerate computation by using numba compilation in the module
+            t_ov_1 = time.perf_counter(); objs10 = FluorObj(typical_size=12.0); objs10.get_shape(accelerated=True); objs10.plot_shape()
+            elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
+            if elapsed_time_ov > 1000:
+                elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 2)
+                print(f"Compiled round shape computation took {elapsed_time_ov} seconds", flush=True)
+            else:
+                print(f"Compiled round shape computation took {elapsed_time_ov} milliseconds", flush=True)
+            # Standard computing discrete round shape
+            t_ov_1 = time.perf_counter(); objs11 = FluorObj(typical_size=12.0); objs11.get_shape(); objs11.plot_shape()
+            elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
+            if elapsed_time_ov > 1000:
+                elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 2)
+                print(f"Standard round shape computation took {elapsed_time_ov} seconds", flush=True)
+            else:
+                print(f"Standard round shape computation took {elapsed_time_ov} milliseconds", flush=True)
+            # Computing discrete ellipse shape with the attempt to accelerate computation by using numba compilation in the module
+            t_ov_1 = time.perf_counter(); objs12 = FluorObj(shape_type='ellipse', typical_size=(7.5, 6.0, np.pi/3))
+            objs12.get_shape(accelerated=True); objs12.plot_shape(); elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
+            if elapsed_time_ov > 1000:
+                elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 2)
+                print(f"Compiled ellipse shape computation took {elapsed_time_ov} seconds", flush=True)
+            else:
+                print(f"Compiled ellipse shape computation took {elapsed_time_ov} milliseconds", flush=True)
+            # Standard computing discrete ellipse shape
+            t_ov_1 = time.perf_counter(); objs13 = FluorObj(shape_type='ellipse', typical_size=(7.5, 6.0, np.pi/3))
+            objs13.get_shape(); objs13.plot_shape(); elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
+            if elapsed_time_ov > 1000:
+                elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 2)
+                print(f"Standard ellipse shape computation took {elapsed_time_ov} seconds", flush=True)
+            else:
+                print(f"Standard ellipse shape computation took {elapsed_time_ov} milliseconds", flush=True)
+            if i == 0:
+                plt.close('all'); del objs10, objs11, objs12, objs13
