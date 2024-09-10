@@ -1429,6 +1429,6 @@ if __name__ == "__main__":
         # Saving generated image by using skimage (although not included in the dependencies)
         try:
             import skimage
-            skimage.io.imsave("D:\\Repos\\fluoscenepy\\docs\\favicon.png", scene_favicon.image)
+            skimage.io.imsave(Path.home(), scene_favicon.image)
         except ModuleNotFoundError:
             pass
