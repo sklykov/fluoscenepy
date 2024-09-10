@@ -1,11 +1,11 @@
 [project]
-name = "fluoscenepy - ?"
+name = "fluoscenepy"
 version = "0.0.1"
 authors = [
     {name = "Sergei Klykov"},
     {email = "sergej.klykow@gmail.com"}
 ]
-description = "Simulation of microscopic image with fluorescent objects"
+description = "Simulation of a microscopic image with round (beads) and elongated fluorescent objects"
 readme = "README.md"
 # license = {file = "LICENSE"}  # includes the whole text in METADATA, maybe not so convienient
 license = {text = "MIT"}  # short descriptive name of the used license
@@ -18,9 +18,8 @@ classifiers = [
 dependencies = [
     "numpy",
     "matplotlib",
-	"scikit-image",
 ]
-keywords = ["fluorescent objects"]
+keywords = ["fluorescent objects", "fluorescent microscopic image simulaiton"]
 
 [project.urls]  # METADATA in wheel file will represent the data below by using pip show zernpy -v
 # But the the links themselves are mapped / parced by the PyPi website

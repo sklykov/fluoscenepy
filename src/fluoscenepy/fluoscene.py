@@ -45,7 +45,6 @@ class UscopeScene:
     References
     ----------
     For the used noise models, see the 'add_noise method'.
-    [1] ...
 
     """
 
@@ -53,7 +52,7 @@ class UscopeScene:
     width: int = 4; height: int = 4; __warn_message: str = ""; max_pixel_value = 255; img_type = np.uint8
     acceptable_img_types: list = ['uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64]
     max_pixel_value_uint8: int = 255; max_pixel_value_uint16: int = 65535; shape: tuple = (height, width)
-    fluo_objects: list = []; shape_types = ['mixed', 'round', 'r', 'ellipse', 'el']
+    fluo_objects: list = []; shape_types = ['mixed', 'round', 'r', 'ellipse', 'el']; image: np.ndarray = None
     __image_cleared: bool = True  # for tracking that the scene was cleared (zeroed)
     __available_coordinates: list = []; __binary_placement_mask: np.ndarray = None; denoised_image: np.ndarray = None
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
@@ -1251,6 +1250,7 @@ if __name__ == "__main__":
     prepare_centered_docs_images = False  # for making centered sample images for preparing Readme file about this project
     prepare_shifted_docs_images = False; shifts_sample = (0.24, 0.0)  # for making shifted sample images for preparing Readme
     prepare_scene_samples = False  # for preparing illustrative scenes with placed on them objects
+    prepare_favicon_img = False  # generate picture with dense round objects
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -1421,3 +1421,14 @@ if __name__ == "__main__":
                 print(f"Standard ellipse shape computation took {elapsed_time_ov} milliseconds", flush=True)
             if i == 0:
                 plt.close('all'); del objs10, objs11, objs12, objs13
+    if prepare_favicon_img:
+        round_objs2 = UscopeScene.get_round_objects(mean_size=10.0, size_std=2.0, intensity_range=(242, 252), n_objects=100)
+        scene_favicon = UscopeScene(width=256, height=256)
+        round_objs2 = scene_favicon.set_random_places(round_objs2, overlapping=False, touching=False, only_within_scene=False, verbose_info=True)
+        scene_favicon.put_objects_on(round_objs2); scene_favicon.add_noise(); scene_favicon.show_scene(color_map='gray')
+        # Saving generated image by using skimage (although not included in the dependencies)
+        try:
+            import skimage
+            skimage.io.imsave("D:\\Repos\\fluoscenepy\\docs\\favicon.png", scene_favicon.image)
+        except ModuleNotFoundError:
+            pass
