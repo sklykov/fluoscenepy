@@ -44,7 +44,7 @@ class UscopeScene:
 
     References
     ----------
-    For the used noise models, see the 'add_noise method'.
+    In general, there is no references for implementation. For the used noise models, see the 'add_noise method'.
 
     """
 
@@ -1250,7 +1250,7 @@ if __name__ == "__main__":
     prepare_centered_docs_images = False  # for making centered sample images for preparing Readme file about this project
     prepare_shifted_docs_images = False; shifts_sample = (0.24, 0.0)  # for making shifted sample images for preparing Readme
     prepare_scene_samples = False  # for preparing illustrative scenes with placed on them objects
-    prepare_favicon_img = False  # generate picture with dense round objects
+    prepare_favicon_img = False; prepare_large_favicon_img = False  # generate picture with dense round objects
 
     # Testing the centered round objects generation
     if test_computed_centered_beads:
@@ -1421,6 +1421,7 @@ if __name__ == "__main__":
                 print(f"Standard ellipse shape computation took {elapsed_time_ov} milliseconds", flush=True)
             if i == 0:
                 plt.close('all'); del objs10, objs11, objs12, objs13
+    # Prepare sample images for using as favicons in the documentation and for the main documentation page
     if prepare_favicon_img:
         round_objs2 = UscopeScene.get_round_objects(mean_size=10.0, size_std=2.0, intensity_range=(242, 252), n_objects=100)
         scene_favicon = UscopeScene(width=256, height=256)
@@ -1432,3 +1433,15 @@ if __name__ == "__main__":
             skimage.io.imsave(Path.home(), scene_favicon.image)
         except ModuleNotFoundError:
             pass
+    if prepare_large_favicon_img:
+        round_objs3 = UscopeScene.get_round_objects(mean_size=8.0, size_std=1.0, intensity_range=(240, 252), n_objects=20)
+        scene_favicon2 = UscopeScene(width=64, height=64)
+        round_objs3 = scene_favicon2.set_random_places(round_objs3, overlapping=False, touching=False, only_within_scene=False, verbose_info=True)
+        scene_favicon2.put_objects_on(round_objs3); scene_favicon2.add_noise(); scene_favicon2.show_scene(color_map='cividis')
+        custom_path = ""; saving_possible = True
+        try:
+            from skimage import io
+        except ModuleNotFoundError:
+            saving_possible = False
+        if len(custom_path) > 0 and saving_possible:
+            io.imsave(Path(custom_path), scene_favicon2.image)

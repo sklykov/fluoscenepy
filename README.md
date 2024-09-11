@@ -111,8 +111,8 @@ Generated scene with additional noise calculated with default method parameters:
 ### Performance of calculations
 Note that even single 'precise' shaped round object (bead) generation can take around 2 seconds for the diameter 12 pixels
 because of the slow nested for loops for calculating each pixel which is partially within the circle border.   
-To speed up the calculations, one can install the [numba](https://numba.pydata.org/) library in same Python environment
-and provide the according flags in calculation methods, similar to following code snippets: 
+To speed up the calculations, one can install the [numba](https://numba.pydata.org/) library in the same Python environment
+and provide the according flags in calculation methods, similar to the following code snippets: 
 ````python
 import numpy as np
 from fluoscenepy import FluorObj, force_precompilation
