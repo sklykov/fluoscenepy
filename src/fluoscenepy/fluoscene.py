@@ -1374,6 +1374,8 @@ if __name__ == "__main__":
         objs7 = FluorObj(typical_size=2.0, center_shifts=shifts_sample, border_type="computed", shape_method="circle")
         objs8 = FluorObj(typical_size=2.0, center_shifts=shifts_sample)
         objs7.get_shape(); objs7.plot_shape(); objs8.get_shape(); objs8.plot_shape()
+        objel3 = FluorObj(shape_type='ellipse', typical_size=(4.8, 3.3, np.pi/6), center_shifts=shifts_sample)
+        objel3.get_shape(); objel3.plot_shape()
     if prepare_scene_samples:
         force_precompilation()  # forcing precompilation by numba
         samples1 = UscopeScene.get_random_objects(mean_size=(9.11, 6.56), size_std=(1.15, 0.82), shapes='mixed', intensity_range=(185, 252),

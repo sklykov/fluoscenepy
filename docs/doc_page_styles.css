@@ -1,0 +1,71 @@
+body {
+    /* Google font downloaded by the command in the html file */
+    font-family: 'Chakra Petch', sans-serif;
+    /* Providing custom background for page */
+    /* Below trick to avoid repeating background because page content is less than viewport height */
+    background-image: linear-gradient(to bottom, #0f0c29, #302b63, #24243e);
+    color: 	whitesmoke; 
+    height: 100%;
+}
+
+/* Styling navigation tab links. Chaining classes for selecting element with both classes. */
+.nav-link.active {
+    color: darkgreen !important;
+}
+
+.nav-link {
+    color: rgb(1, 164, 164) !important;
+}
+.nav-link:hover {
+    color: rgb(37, 209, 209) !important;
+    background-color: #171628;
+}
+.nav-link.active:hover {
+    color: rgb(2, 161, 2) !important;
+    background-color: rgb(216, 213, 213);
+}
+
+/* Links styling in the text */
+.page-link {
+    display: inline;
+    color: rgb(0, 104, 0);
+    text-decoration: underline;
+}
+.page-link:hover {
+    color: rgb(10, 133, 10); background-color: rgb(230, 224, 224);
+}
+.page-link:visited {
+    color: rgb(0, 136, 0);
+}
+
+/* Styles for images showing */
+.figure-img {
+    width: 30vw;
+}
+
+/* Adaptivity (on top of provided by Bootstrap) for different screen sizes */
+/* Added adaptive for md, lg breakpoints: font size, ...  */
+@media screen and (max-width: 992px) {
+    #page-text-content {
+        /* Similar to the Bootstrap 'fs' class, but decreased starting value */
+        font-size: calc(1.1rem + 0.3vw) !important;
+    }
+    #page-text-header {
+        font-size: calc(1.2rem + 0.75vw) !important;
+    }
+    #hor-page-navbar {
+        font-size: 0.95rem !important;
+    }
+}
+@media screen and (max-width: 768px) {
+    #page-text-content {
+        /* Similar to the Bootstrap 'fs' class, but decreased starting value */
+        font-size: calc(0.94rem + 0.275vw) !important;
+    }
+    #page-text-header {
+        font-size: calc(1rem + 0.5vw) !important;
+    }
+    #hor-page-navbar {
+        font-size: 0.9rem !important;
+    }
+}
