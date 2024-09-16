@@ -76,29 +76,29 @@
       </p>
     </article>
     <!-- Adding visual content for making more explanatory content -->
-    <div class="container-fluid text-center text-break my-3 fs-4">
-      <p>
+    <div id="images-caption-container" class="container-fluid text-center text-break fs-4">
+      <p class="mx-2 my-1 p-1">
         Below are a few examples of figures and images related to the
         calculation methods implemented in the project.
       </p>
-      <!-- Round object -->
-      <div class="row">
+      <div class="row m-2">
+        <!-- Round object, stored in column until md breakpoint -->
         <div class="col-md">
           <figure class="figure">
-            <img src="../src/fluoscenepy/readme_images/Precise_bordered_circle_rad_4.8px.png"
+            <img src="./Precise_bordered_circle_rad_4.8px.png"
               class="figure-img img-fluid rounded" alt="Precisely projected circle on pixel grid" />
-            <figcaption class="figure-caption fs-5">
+            <figcaption class="figure-caption">
               Precisely projected circle with R = 4.8 pixels on a grid
               or the generated 'precise' 'round' object by the class <code>FluorObj()</code>.
             </figcaption>
           </figure>
         </div>
-        <!-- Ellipse object -->
+        <!-- Ellipse object, stored in column until md breakpoint -->
         <div class="col-md">
           <figure class="figure">
             <img src="./Ellipse_precise_profile.png" class="figure-img img-fluid rounded"
               alt="Precisely projected ellipse on pixel grid" />
-            <figcaption class="figure-caption fs-5">
+            <figcaption class="figure-caption">
               Precisely projected ellipse with <code>typical_size=(4.8, 3.3, np.pi/6)</code> parameter
               or the generated 'precise' 'ellipse' object by the class <code>FluorObj()</code>.
             </figcaption>

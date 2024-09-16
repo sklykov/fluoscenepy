@@ -56,6 +56,12 @@ body {
     #hor-page-navbar {
         font-size: 0.95rem !important;
     }
+    #images-caption-container {
+        font-size: calc(1rem + 0.3vw) !important;
+    }
+    .figure-img {
+        width: 40vw;
+    }
 }
 @media screen and (max-width: 768px) {
     #page-text-content {
@@ -67,5 +73,11 @@ body {
     }
     #hor-page-navbar {
         font-size: 0.9rem !important;
+    }
+    #images-caption-container {
+        font-size: calc(0.92rem + 0.275vw) !important;
+    }
+    .figure-img {
+        width: 56vw;
     }
 }
