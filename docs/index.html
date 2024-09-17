@@ -17,6 +17,11 @@
       integrity="sha256-m81NDyncZVbr7v9E6qCWXwx/cwjuWDlHCMzi9pjMobA="
       crossorigin="anonymous"
     ></script>
+    <!-- Adding Bootstrap icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
     <!-- Icon for the page -->
     <link rel="icon" href="./favicon_page.png" type="image/x-icon" />
     <!-- Font from Google -->
@@ -53,58 +58,125 @@
         >
       </li>
     </nav>
-    <!-- Text page content -->
-    <h3 id="page-text-header" class="text-center m-4 p-2 fw-semibold">
+    <!-- Text page content: header, some text, pictures -->
+    <h3 id="page-text-header" class="text-center m-3 p-2 fw-semibold">
       Thanks for visiting 'fluoscenepy' project page!
     </h3>
     <!-- Note for development: id should be used for overriding the Bootstrap class in the own css -->
-    <article id="page-text-content" class="text-center text-break p-1 m-2 fs-4">
-      <p class="m-0 p-0 mb-1">
-        The main information about the project scope and examples could be found
-        in the
-        <a
-          class="page-link"
-          href="https://github.com/sklykov/fluoscenepy/blob/main/README.md"
-          rel="external noreferrer noopener"
-          >Readme</a
-        >.
-      </p>
-      <p class="m-0 p-0">
-        For getting information about implemented methods ("API Dictionary")
-        click the link 'API Reference' on the Navigation Bar above, it will be
-        opened in the new tab.
-      </p>
-    </article>
+    <!-- Additional container - for restricting the width of the article -->
+    <div class="container-lg text-center">
+      <article id="page-text-content" class="text-break p-1 m-2 fs-4">
+        <p class="m-0 p-0 mb-1">
+          The main information about the project scope and examples could be
+          found in the
+          <a
+            class="page-link"
+            href="https://github.com/sklykov/fluoscenepy/blob/main/README.md"
+            rel="external noreferrer noopener"
+            >Readme</a
+          >
+          file.
+        </p>
+        <p class="m-0 p-0">
+          For getting information about implemented methods ("API Dictionary")
+          click the link 'API Reference' on the Navigation Bar above, it will be
+          opened in the new tab.
+        </p>
+      </article>
+    </div>
     <!-- Adding visual content for making more explanatory content -->
-    <div id="images-caption-container" class="container-fluid text-center text-break fs-4">
-      <p class="mx-2 my-1 p-1">
+    <div
+      id="images-caption-container"
+      class="container-fluid text-center text-break fs-4 mt-3"
+    >
+      <p class="mx-3 my-1 p-1">
         Below are a few examples of figures and images related to the
         calculation methods implemented in the project.
       </p>
-      <div class="row m-2">
-        <!-- Round object, stored in column until md breakpoint -->
-        <div class="col-md">
-          <figure class="figure">
-            <img src="./Precise_bordered_circle_rad_4.8px.png"
-              class="figure-img img-fluid rounded" alt="Precisely projected circle on pixel grid" />
+      <div class="container-fluid text-center">
+        <div class="row justify-content-center m-1">
+          <!-- Round object, stored in column until md breakpoint -->
+          <div class="col-md-auto mx-2">
+            <figure id="box-fig1" class="figure">
+              <img
+                src="./Precise_bordered_circle_rad_4.8px.png"
+                class="figure-img img-fluid rounded"
+                alt="Precisely projected circle on pixel grid"
+              />
+              <figcaption class="figure-caption">
+                Precisely projected circle with R = 4.8 pixels on a grid or the
+                generated 'precise' 'round' object by the class
+                <code>FluorObj()</code>.
+              </figcaption>
+            </figure>
+          </div>
+          <!-- Ellipse object, stored in column until md breakpoint -->
+          <div class="col-md-auto mx-2">
+            <figure id="box-fig2" class="figure">
+              <img
+                src="./Ellipse_precise_profile.png"
+                class="figure-img img-fluid rounded"
+                alt="Precisely projected ellipse on pixel grid"
+              />
+              <figcaption class="figure-caption">
+                Precisely projected ellipse with
+                <code>typical_size=(4.8, 3.3, np.pi/6)</code> parameter or the
+                generated 'precise' 'ellipse' object by the class
+                <code>FluorObj()</code>.
+              </figcaption>
+            </figure>
+          </div>
+          <!-- Scene without noise -->
+          <div class="col-md-auto mx-2">
+            <figure id="box-fig3" class="figure">
+              <img
+                src="./Scene_without_noise_page.png"
+                class="figure-img img-fluid rounded"
+                alt="Scene with placed fluorescent objects, without additional noise"
+              />
+              <figcaption class="figure-caption">
+                Scene with placed fluorescent objects without additional noise,
+                generated by methods
+                <code
+                  >get_random_objects(...), set_random_places(...),
+                  put_objects_on(...)</code
+                >
+                of the <code>UscopeScene()</code> class.
+              </figcaption>
+            </figure>
+          </div>
+          <!-- Same scene but with noise -->
+          <div class="col-md-auto mx-2"></div>
+          <figure id="box-fig4" class="figure">
+            <img
+              src="./Scene_with_noise_page.png"
+              class="figure-img img-fluid rounded"
+              alt="Scene with placed fluorescent objects, without additional noise"
+            />
             <figcaption class="figure-caption">
-              Precisely projected circle with R = 4.8 pixels on a grid
-              or the generated 'precise' 'round' object by the class <code>FluorObj()</code>.
-            </figcaption>
-          </figure>
-        </div>
-        <!-- Ellipse object, stored in column until md breakpoint -->
-        <div class="col-md">
-          <figure class="figure">
-            <img src="./Ellipse_precise_profile.png" class="figure-img img-fluid rounded"
-              alt="Precisely projected ellipse on pixel grid" />
-            <figcaption class="figure-caption">
-              Precisely projected ellipse with <code>typical_size=(4.8, 3.3, np.pi/6)</code> parameter
-              or the generated 'precise' 'ellipse' object by the class <code>FluorObj()</code>.
+              Same scene as from above but with added by the method
+              <code>add_noise()</code> called with default parameters.
             </figcaption>
           </figure>
         </div>
       </div>
     </div>
+    <!-- Footer for the page -->
+    <footer class="d-flex justify-content-start mx-3">
+      <span>
+        S.K., GitHub profile:
+        <a
+          href="https://github.com/sklykov"
+          target="_blank"
+          style="color: whitesmoke; text-decoration: none"
+        >
+          <i class="bi bi-github" style="font-size: 1.75em"> </i>
+        </a>
+        <a class="page-link" href="https://github.com/sklykov" target="_blank">
+          @sklykov</a
+        >
+        , MIT licensed
+      </span>
+    </footer>
   </body>
 </html>

@@ -1378,9 +1378,9 @@ if __name__ == "__main__":
         objel3.get_shape(); objel3.plot_shape()
     if prepare_scene_samples:
         force_precompilation()  # forcing precompilation by numba
-        samples1 = UscopeScene.get_random_objects(mean_size=(9.11, 6.56), size_std=(1.15, 0.82), shapes='mixed', intensity_range=(185, 252),
-                                                  n_objects=12, verbose_info=True, accelerated=True)
-        scene_s = UscopeScene(width=72, height=64)
+        samples1 = UscopeScene.get_random_objects(mean_size=(9.5, 8.0), size_std=(1.15, 0.82), shapes='mixed', intensity_range=(186, 254),
+                                                  n_objects=25, verbose_info=True, accelerated=True)
+        scene_s = UscopeScene(width=104, height=92)
         samples1_pl = scene_s.set_random_places(samples1, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         scene_s.put_objects_on(samples1_pl, save_only_objects_inside=True); scene_s.show_scene("Scene without noise", color_map="gray")
         scene_s.add_noise(); scene_s.show_scene("Scene with added noise (default parameters)", color_map="gray")
