@@ -89,11 +89,11 @@
       id="images-caption-container"
       class="container-fluid text-center text-break fs-4 mt-3"
     >
-      <p class="mx-3 my-1 p-1">
+      <p class="mx-3 mt-1 mb-2 p-1">
         Below are a few examples of figures and images related to the
         calculation methods implemented in the project.
       </p>
-      <div class="container-fluid text-center">
+      <div class="container-fluid text-center my-1 p-1">
         <div class="row justify-content-center m-1">
           <!-- Round object, stored in column until md breakpoint -->
           <div class="col-md-auto mx-2">
@@ -146,23 +146,24 @@
             </figure>
           </div>
           <!-- Same scene but with noise -->
-          <div class="col-md-auto mx-2"></div>
-          <figure id="box-fig4" class="figure">
-            <img
-              src="./Scene_with_noise_page.png"
-              class="figure-img img-fluid rounded"
-              alt="Scene with placed fluorescent objects, without additional noise"
-            />
-            <figcaption class="figure-caption">
-              Same scene as from above but with added by the method
-              <code>add_noise()</code> called with default parameters.
-            </figcaption>
-          </figure>
+          <div class="col-md-auto mx-2">
+            <figure id="box-fig4" class="figure">
+              <img
+                src="./Scene_with_noise_page.png"
+                class="figure-img img-fluid rounded"
+                alt="Scene with placed fluorescent objects, without additional noise"
+              />
+              <figcaption class="figure-caption">
+                Same scene as from above but with added by the method
+                <code>add_noise()</code> called with default parameters.
+              </figcaption>
+            </figure>
+          </div>
         </div>
       </div>
     </div>
     <!-- Footer for the page -->
-    <footer class="d-flex justify-content-start mx-3">
+    <footer id="page-footer" class="d-flex justify-content-start ms-5 me-1 mt-2 mb-4 fs-5">
       <span>
         S.K., GitHub profile:
         <a
@@ -170,7 +171,7 @@
           target="_blank"
           style="color: whitesmoke; text-decoration: none"
         >
-          <i class="bi bi-github" style="font-size: 1.75em"> </i>
+          <i id="github-icon" class="bi bi-github"> </i>
         </a>
         <a class="page-link" href="https://github.com/sklykov" target="_blank">
           @sklykov</a

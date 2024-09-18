@@ -1252,6 +1252,14 @@ if __name__ == "__main__":
     prepare_scene_samples = False  # for preparing illustrative scenes with placed on them objects
     prepare_favicon_img = False; prepare_large_favicon_img = False  # generate picture with dense round objects
 
+    # Check if skimage is installed and set the flag for using it for saving the raw generated images below
+    # Although skimage is not included in the dependencies of the package
+    saving_possible = True
+    try:
+        from skimage import io
+    except ModuleNotFoundError:
+        saving_possible = False
+
     # Testing the centered round objects generation
     if test_computed_centered_beads:
         gb1 = FluorObj(typical_size=2.0, border_type='co', shape_method='g'); gb1.get_shape(); gb1.plot_shape()
@@ -1383,7 +1391,11 @@ if __name__ == "__main__":
         scene_s = UscopeScene(width=104, height=92)
         samples1_pl = scene_s.set_random_places(samples1, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         scene_s.put_objects_on(samples1_pl, save_only_objects_inside=True); scene_s.show_scene("Scene without noise", color_map="gray")
+        if saving_possible:
+            io.imsave(Path.home().joinpath("Scene_without_noise.png"), scene_s.image)
         scene_s.add_noise(); scene_s.show_scene("Scene with added noise (default parameters)", color_map="gray")
+        if saving_possible:
+            io.imsave(Path.home().joinpath("Scene_with_noise.png"), scene_s.image)
     # Testing acceleration by using numba compilation in the imported module
     if test_compiling_acceleration:
         force_precompilation()  # force precompilation of functions by numba
@@ -1429,21 +1441,13 @@ if __name__ == "__main__":
         scene_favicon = UscopeScene(width=256, height=256)
         round_objs2 = scene_favicon.set_random_places(round_objs2, overlapping=False, touching=False, only_within_scene=False, verbose_info=True)
         scene_favicon.put_objects_on(round_objs2); scene_favicon.add_noise(); scene_favicon.show_scene(color_map='gray')
-        # Saving generated image by using skimage (although not included in the dependencies)
-        try:
-            import skimage
-            skimage.io.imsave(Path.home(), scene_favicon.image)
-        except ModuleNotFoundError:
-            pass
+        if saving_possible:
+            io.imsave(Path.home().joinpath("favicon.png"), scene_favicon.image)
     if prepare_large_favicon_img:
         round_objs3 = UscopeScene.get_round_objects(mean_size=8.0, size_std=1.0, intensity_range=(240, 252), n_objects=20)
         scene_favicon2 = UscopeScene(width=64, height=64)
         round_objs3 = scene_favicon2.set_random_places(round_objs3, overlapping=False, touching=False, only_within_scene=False, verbose_info=True)
         scene_favicon2.put_objects_on(round_objs3); scene_favicon2.add_noise(); scene_favicon2.show_scene(color_map='cividis')
-        custom_path = ""; saving_possible = True
-        try:
-            from skimage import io
-        except ModuleNotFoundError:
-            saving_possible = False
+        custom_path = ""
         if len(custom_path) > 0 and saving_possible:
             io.imsave(Path(custom_path), scene_favicon2.image)
