@@ -19,14 +19,14 @@ dependencies = [
     "numpy",
     "matplotlib",
 ]
-keywords = ["fluorescent objects", "fluorescent microscopic image simulaiton"]
+keywords = ["fluorescent microscopic image simulaiton"]
 
 [project.urls]  # METADATA in wheel file will represent the data below by using pip show zernpy -v
 # But the the links themselves are mapped / parced by the PyPi website
-"Homepage" = "https://pypi.org/project/.../"
+"Homepage" = "https://sklykov.github.io/fluoscenepy/"
 "Repository" = "https://github.com/sklykov/fluoscenepy/"
 "Bug Tracker" = "https://github.com/sklykov/fluoscenepy/issues/"
-"Documentation" = "https://sklykov.github.io/fluoscenepy/docs/.../"
+"Documentation" = "https://sklykov.github.io/fluoscenepy/api_doc/fluoscenepy/fluoscene.html"
 "Changelog" = "https://github.com/sklykov/fluoscenepy/blob/main/CHANGELOG.md"
 
 # [tool.setuptools]
