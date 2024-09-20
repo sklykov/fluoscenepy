@@ -188,7 +188,8 @@ class UscopeScene:
                     radius += random.uniform(a=0.6-radius, b=0.6)
                 # Generating the object and calculating its shape, cast and crop it
                 fl_object = FluorObj(typical_size=radius, center_shifts=(i_shift, j_shift)); fl_object.get_shape(accelerated=accelerated)
-                fl_object.crop_shape(); fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
+                fl_object.crop_shape(); fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type)
+                fl_objects.append(fl_object)
             # Ellipse shaped object generation
             elif shape_type == 'ellipse' or shape_type == 'el':
                 a, b = mean_size; a_std, b_std = size_std  # unpacking tuples assuming 2 of sizes packed there
@@ -485,11 +486,13 @@ class UscopeScene:
             Fluorescent objects, instances of FluorObj class, packed in a tuple. The default is ().
         save_objects : bool, optional
             If True, will save (append) objects in the class attribute 'fluo_objects'. The default is True. \n
-            Note that, if it's False, then before placing the objects, the scene will be cleared (stored before objects will be removed from it).
+            Note that, if it's False, then before placing the objects, the scene will be cleared
+            (stored before objects will be removed from it).
         save_only_objects_inside : bool, optional
             Save in the class attribute ('fluo_objects') only objects that are inside the image. The default is False.
         rewrite_objects : bool, optional
-            If True, it forces to substitute stored objects in the class attribute 'fluo_objects' with the provided ones. The default is False.
+            If True, it forces to substitute stored objects in the class attribute 'fluo_objects' with the provided ones.
+            The default is False.
 
         Returns
         -------
@@ -962,7 +965,8 @@ class FluorObj:
 
         """
         if image_type not in UscopeScene.acceptable_img_types:
-            raise ValueError(f"Provided image type '{image_type}' not in the acceptable list of types: " + str(UscopeScene.acceptable_img_types))
+            raise ValueError(f"Provided image type '{image_type}' not in the acceptable list of types: "
+                             + str(UscopeScene.acceptable_img_types))
         if self.profile is not None:
             if image_type == 'uint8' or image_type is np.uint8:
                 if max_pixel_value > UscopeScene.max_pixel_value_uint8 or max_pixel_value < 0:
@@ -1243,8 +1247,8 @@ if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_precise_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
     test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False
-    test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = False; test_various_noises = False; shifts = (-0.2, 0.44)
-    test_cropping_shifted_circles = False; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
+    test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = False; test_various_noises = False
+    shifts = (-0.2, 0.44); test_cropping_shifted_circles = False; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
     test_compiling_acceleration = False  # testing the acceleration through compilation using numba
     test_placing_circles = False  # testing speed up placing algorithm
     prepare_centered_docs_images = False  # for making centered sample images for preparing Readme file about this project
@@ -1321,12 +1325,14 @@ if __name__ == "__main__":
     # Testing of generating scenes with various settings
     if test_generate_objects:
         objs = UscopeScene.get_random_objects(mean_size=4.2, size_std=1.5, shapes='r', intensity_range=(230, 252), n_objects=2)
-        objs2 = UscopeScene.get_random_objects(mean_size=(7.3, 5), size_std=(2, 1.19), shapes='el', intensity_range=(220, 250), n_objects=2)
+        objs2 = UscopeScene.get_random_objects(mean_size=(7.3, 5), size_std=(2, 1.19), shapes='el',
+                                               intensity_range=(220, 250), n_objects=2)
         scene = UscopeScene(width=45, height=38); objs = scene.set_random_places(objs); objs2 = scene.set_random_places(objs2)
         scene.put_objects_on(objs); scene.put_objects_on(objs2, save_objects=False); scene.show_scene()
         # scene2 = UscopeScene(width=55, height=46); scene2.show_scene()  # will show 'Blank' image
     if test_overall_gen:
-        objs3 = UscopeScene.get_random_objects(mean_size=(8.3, 5.4), size_std=(2, 1.19), shapes='mixed', intensity_range=(182, 250), n_objects=5)
+        objs3 = UscopeScene.get_random_objects(mean_size=(8.3, 5.4), size_std=(2, 1.19),
+                                               shapes='mixed', intensity_range=(182, 250), n_objects=5)
         scene = UscopeScene(width=55, height=46); scene.spread_objects_on(objs3); scene.show_scene(color_map='gray')
     if test_precise_shape_gen:
         objs4 = UscopeScene.get_random_objects(mean_size=(6.21, 5.36), size_std=(1.25, 0.95), shapes='mixed', intensity_range=(182, 250),
@@ -1439,14 +1445,16 @@ if __name__ == "__main__":
     if prepare_favicon_img:
         round_objs2 = UscopeScene.get_round_objects(mean_size=10.0, size_std=2.0, intensity_range=(242, 252), n_objects=100)
         scene_favicon = UscopeScene(width=256, height=256)
-        round_objs2 = scene_favicon.set_random_places(round_objs2, overlapping=False, touching=False, only_within_scene=False, verbose_info=True)
+        round_objs2 = scene_favicon.set_random_places(round_objs2, overlapping=False, touching=False,
+                                                      only_within_scene=False, verbose_info=True)
         scene_favicon.put_objects_on(round_objs2); scene_favicon.add_noise(); scene_favicon.show_scene(color_map='gray')
         if saving_possible:
             io.imsave(Path.home().joinpath("favicon.png"), scene_favicon.image)
     if prepare_large_favicon_img:
         round_objs3 = UscopeScene.get_round_objects(mean_size=8.0, size_std=1.0, intensity_range=(240, 252), n_objects=20)
         scene_favicon2 = UscopeScene(width=64, height=64)
-        round_objs3 = scene_favicon2.set_random_places(round_objs3, overlapping=False, touching=False, only_within_scene=False, verbose_info=True)
+        round_objs3 = scene_favicon2.set_random_places(round_objs3, overlapping=False, touching=False,
+                                                       only_within_scene=False, verbose_info=True)
         scene_favicon2.put_objects_on(round_objs3); scene_favicon2.add_noise(); scene_favicon2.show_scene(color_map='cividis')
         custom_path = ""
         if len(custom_path) > 0 and saving_possible:

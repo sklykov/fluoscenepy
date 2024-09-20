@@ -1,6 +1,7 @@
 [project]
 name = "fluoscenepy"
-version = "0.0.1"
+# version = "0.0.1"  # Manual specification of the version
+dynamic = ["version"]  # Discovering of the version by the setuptools (see below: in the 'file' or 'attr')
 authors = [
     {name = "Sergei Klykov"},
     {email = "sergej.klykow@gmail.com"}
@@ -22,18 +23,20 @@ dependencies = [
 keywords = ["fluorescent microscopic image simulaiton"]
 
 [project.urls]  # METADATA in wheel file will represent the data below by using pip show zernpy -v
-# But the the links themselves are mapped / parced by the PyPi website
+# The links below are mapped / parced by the PyPi website
 "Homepage" = "https://sklykov.github.io/fluoscenepy/"
 "Repository" = "https://github.com/sklykov/fluoscenepy/"
 "Bug Tracker" = "https://github.com/sklykov/fluoscenepy/issues/"
 "Documentation" = "https://sklykov.github.io/fluoscenepy/api_doc/fluoscenepy/fluoscene.html"
 "Changelog" = "https://github.com/sklykov/fluoscenepy/blob/main/CHANGELOG.md"
 
-# [tool.setuptools]
-# include-package-data = true  # true by default
-
 # [tool.setuptools.packages.find]  # Manifest.in file is only required for adding some package-data
 # where = ["src"]  # there is no need to specify this here
+
+# Below - specification of version within the package by discovering attribute in project files
+[tool.setuptools.dynamic]
+# version = {file = "VERSION"}  # reading the version from the plane file
+version = {attr = "fluoscenepy.__version__"}  # Variable set in the __init__.py
 
 [build-system]
 requires = ["setuptools>=61.0"]

@@ -50,8 +50,7 @@ of occupied area laying within the circular border, as on the following picture 
 
 ![Intersection](./src/fluoscenepy/readme_images/Intersection_Circle_rad_1px.png "Precise Circle 1px R")   
 
-2) To illustrate better the effect of area intersections calculation, the shape of the bead with diameter of 
-4.8 pixels:      
+2) To illustrate better the effect of area intersections calculation, the shape of the bead with diameter of 4.8 pixels:      
 
 ![Precise Circle 4.8](./src/fluoscenepy/readme_images/Precise_bordered_circle_rad_4.8px.png "Precise Circle 4.8px R")
 ```python
@@ -112,11 +111,13 @@ Generated scene with additional noise calculated with default method parameters:
 Note that even single 'precise' shaped round object (bead) generation can take around 2 seconds for the diameter 12 pixels
 because of the slow nested for loops for calculating each pixel which is partially within the circle border.   
 To speed up the calculations, one can install the [numba](https://numba.pydata.org/) library in the same Python environment
-and provide the according flags in calculation methods, similar to the following code snippets: 
+and provide the according flags in calculation methods, similar to the following code snippets.    
+**PLEASE NOTE:** it has been revealed during tests that the required ***numba*** version should be **>=0.57.1** 
+(tested and verified for versions: 0.57.1 and 0.60.0).
 ````python
 import numpy as np
 from fluoscenepy import FluorObj, force_precompilation
-force_precompilation()   # force precompilation of computational functions by numba
+force_precompilation()   # force pre-compilation of computational functions by numba
 # Round shape object generation
 r_obj_acc = FluorObj(typical_size=12.0)
 r_obj_acc.get_shape(accelerated=True)  # takes ~ 0.7 - 1 sec 
