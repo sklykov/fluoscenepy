@@ -141,10 +141,10 @@ def discrete_shaped_bead_acc(r: float, center_shifts: tuple) -> np.ndarray:
                     i_m = i - 0.5; j_m = j - 0.5; i_p = i + 0.5; j_p = j + 0.5
                     x_row = np.linspace(start=i_m, stop=i_p, num=size_subareas); y_col = np.linspace(start=j_m, stop=j_p, num=size_subareas)
                     coords = np.meshgrid(x_row, y_col); distances = distance_f_acc(coords[0], coords[1], i_center, j_center)
-                    circle_arc_area1 = np.where(distances <= r, single_point_value, 0.0)  # assigning the non-zero for intersected mesh grid points
+                    circle_arc_area1 = np.where(distances <= r, single_point_value, 0.0)  # assigning the non-zero for intersected points
                     S1 = round(np.sum(circle_arc_area1)/normalization, 6)
                     if S1 > 1.0:
-                        S1 = 1.0  # in the rare cases the integration sum can be more than 1.0 due to the limited precision of numerical integration
+                        S1 = 1.0  # in the rare cases the integration sum can be > 1.0 due to the limited precision of numerical integration
                     pixel_value = S1  # assigning the found square of the area laying inside a circle
             img[i, j] = pixel_value  # assign the computed intensity to the stored 2D profile
     return img
@@ -251,7 +251,7 @@ def discrete_shaped_ellipse_acc(sizes: tuple, angle: float, center_shifts: tuple
                 distance_corner = ellipse_equation_acc(i_corner, j_corner, i_center, j_center, a, b, angle)
                 if distance_corner < 0.5:  # empirical value for estimation that the pixel is entirely inside an ellipse
                     pixel_value = 1.0; stop_checking = True
-                # So, the pixel's borders can potentially are intersected by the circle, calculate the estimated intersection area for pixel intensity
+                # So, the pixel's borders can potentially are intersected by the circle, calculate the estimated intersection area for pixel I
                 if not stop_checking:
                     i_m = i - 0.5; j_m = j - 0.5; i_p = i + 0.5; j_p = j + 0.5
                     x_row = np.linspace(start=i_m, stop=i_p, num=size_subareas); y_col = np.linspace(start=j_m, stop=j_p, num=size_subareas)
@@ -259,7 +259,7 @@ def discrete_shaped_ellipse_acc(sizes: tuple, angle: float, center_shifts: tuple
                     circle_arc_area1 = np.where(distances <= 1.0, single_point_value, 0.0)  # assigning the non-zero for intersected grid points
                     S1 = round(np.sum(circle_arc_area1)/normalization, 6)
                     if S1 > 1.0:
-                        S1 = 1.0  # in the rare cases the integration sum can be more than 1.0 due to the limited precision of numerical integration
+                        S1 = 1.0  # in the rare cases the integration sum can be > 1.0 due to the limited precision of numerical integration
                     pixel_value = S1  # assigning the found square of the area laying inside a circle
             img[i, j] = pixel_value  # assign the computed intensity to the stored 2D profile
     return img
