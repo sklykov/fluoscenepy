@@ -146,6 +146,10 @@ class UscopeScene:
         fl_objects = []  # for storing generated objects
         r = None; r_std = None  # default parameters for round objects
         min_intensity, max_intensity = intensity_range  # assuming that only 2 values provided
+        # Printout warning if the method called with parameters leading to the long calculations
+        if verbose_info:
+            pass
+        # Generation loop
         for i in range(n_objects):
             if verbose_info:
                 t1 = time.perf_counter()
@@ -187,6 +191,8 @@ class UscopeScene:
                 if radius < 0.5:
                     radius += random.uniform(a=0.6-radius, b=0.6)
                 # Generating the object and calculating its shape, cast and crop it
+                if verbose_info:
+                    print(f"Started generation of #{i+1} object")
                 fl_object = FluorObj(typical_size=radius, center_shifts=(i_shift, j_shift)); fl_object.get_shape(accelerated=accelerated)
                 fl_object.crop_shape(); fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type)
                 fl_objects.append(fl_object)
@@ -206,6 +212,8 @@ class UscopeScene:
                         a += random.uniform(1.1-a, 1.1)
                     else:
                         b += random.uniform(1.1-b, 1.1)
+                if verbose_info:
+                    print(f"Started generation of #{i+1} object")
                 fl_object = FluorObj(typical_size=(a_r, b_r, angle), center_shifts=(i_shift, j_shift), shape_type='ellipse')
                 fl_object.get_shape(accelerated=accelerated); fl_object.crop_shape()  # calculate normalized shape and crop it
                 fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
@@ -224,6 +232,9 @@ class UscopeScene:
             else:
                 print(f"Overall generation took {elapsed_time_ov} milliseconds", flush=True)
         return tuple(fl_objects)
+
+    def get_objects_acc(self) -> tuple:
+        pass
 
     @staticmethod
     def get_round_objects(mean_size: float, size_std: float, intensity_range: tuple, n_objects: int = 2, shape_r_type: str = 'mixed',
@@ -1228,6 +1239,8 @@ class FluorObj:
 def force_precompilation():
     """
     Force compilation of computing functions for round and ellipse 'precise' shaped objects.
+
+    Note that even this precompilation doesn't guarantee the accelaration of methods in UscopeScene class (use its '' method instead).
 
     Returns
     -------
