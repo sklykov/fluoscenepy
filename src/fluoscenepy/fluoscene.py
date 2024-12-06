@@ -18,17 +18,22 @@ from matplotlib.patches import Circle, Ellipse
 
 try:
     import numba
-    numba_installed = True
+    if numba is not None:
+        numba_installed = True
 except ModuleNotFoundError:
     numba_installed = False
 
 # %% Local (package-scoped) imports
 if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
     from utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
+    from utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
+                                  get_ellipse_sizes)
     if numba_installed:
         from utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
 else:
     from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
+    from .utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
+                                  get_ellipse_sizes)
     if numba_installed:
         from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
 
@@ -145,51 +150,26 @@ class UscopeScene:
             raise ValueError(f"Please provide the supported shape type for generation from a list: {cls.shape_types}")
         fl_objects = []  # for storing generated objects
         r = None; r_std = None  # default parameters for round objects
-        min_intensity, max_intensity = intensity_range  # assuming that only 2 values provided
         # Printout warning if the method called with parameters leading to the long calculations
-        if verbose_info:
-            pass
+        if verbose_info and not accelerated:
+            if np.min(mean_size) >= 4.0 and n_objects >= 10:
+                print(f"***** Note that the overall generation will take more than ~ {round(1.075*n_objects, 1)} sec. *****", flush=True)
+        elif verbose_info and accelerated:
+            if np.min(mean_size) >= 4.0 and n_objects >= 34:
+                print(f"***** Note that the overall generation will take more than ~ {round(0.3*n_objects, 1)} sec. *****", flush=True)
         # Generation loop
         for i in range(n_objects):
             if verbose_info:
                 t1 = time.perf_counter()
             if shapes == 'mixed':
-                shape_type = random.choice(['round', 'ellipse'])
-                # Define radius and radius std for round particles from the provided tuples for the ellipses (random choice between a and b)
-                if isinstance(mean_size, tuple):
-                    r = random.choice(mean_size)
-                else:
-                    r = mean_size
-                if isinstance(size_std, tuple):
-                    r_std = random.choice(size_std)
-                else:
-                    r_std = size_std
+                shape_type, r, r_std = get_random_shape_props(mean_size, size_std)
             else:
                 shape_type = shapes
-            # Random selection of central shifts for placement
-            i_shift = round(random.random(), 3); j_shift = round(random.random(), 3)  # random generation of central pixel shifts
-            # Checking that shifts are generated in the subpixel range and correcting it if not
-            if i_shift >= 1.0:
-                i_shift -= round(random.random(), 3)*0.25
-            if j_shift >= 1.0:
-                j_shift -= round(random.random(), 3)*0.25
-            sign_i = random.choice([-1.0, 1.0]); sign_j = random.choice([-1.0, 1.0]); i_shift *= sign_i; j_shift *= sign_j  # random signs
-            # Random selection of max intensity for the profile casting
-            if isinstance(min_intensity, int) and isinstance(max_intensity, int):
-                fl_intensity = random.randrange(min_intensity, max_intensity, 1)
-            elif isinstance(min_intensity, float) and isinstance(max_intensity, float):
-                fl_intensity = random.uniform(a=min_intensity, b=max_intensity)
+            # Random selection of object parameters: shifts, max intensity
+            i_shift, j_shift = get_random_central_shifts(); fl_intensity = get_random_max_intensity(intensity_range)
             # Round shaped object generation
             if shape_type == 'round' or shape_type == 'r':
-                if r is not None and r_std is not None:
-                    radius = random.gauss(mu=r, sigma=r_std)
-                else:
-                    if isinstance(mean_size, tuple) or isinstance(size_std, tuple):
-                        raise ValueError("Provided tuple with sizes for round shape object, there expected only single number size")
-                    radius = random.gauss(mu=mean_size, sigma=size_std)
-                # Checking generated radius for consistency
-                if radius < 0.5:
-                    radius += random.uniform(a=0.6-radius, b=0.6)
+                radius = get_radius_gaussian(r, r_std, mean_size, size_std)  # Gaussian-distributed random value
                 # Generating the object and calculating its shape, cast and crop it
                 if verbose_info:
                     print(f"Started generation of #{i+1} object")
@@ -198,23 +178,10 @@ class UscopeScene:
                 fl_objects.append(fl_object)
             # Ellipse shaped object generation
             elif shape_type == 'ellipse' or shape_type == 'el':
-                a, b = mean_size; a_std, b_std = size_std  # unpacking tuples assuming 2 of sizes packed there
-                a_r = random.gauss(mu=a, sigma=a_std); b_r = random.gauss(mu=b, sigma=b_std)
-                angle = random.uniform(a=0.0, b=2.0*np.pi)  # get random orientation for an ellipse
-                # Checking generated a, b axes for consistency (min axis >= 0.5, max axis >= 1.0)
-                if a < 0.5:
-                    a += random.uniform(0.6-a, 0.6)
-                elif b < 0.5:
-                    b += random.uniform(0.6-b, 0.6)
-                max_axis = max(a, b)
-                if max_axis < 1.0:
-                    if a == max_axis:
-                        a += random.uniform(1.1-a, 1.1)
-                    else:
-                        b += random.uniform(1.1-b, 1.1)
+                ellipse_sizes = get_ellipse_sizes(mean_size, size_std)
                 if verbose_info:
                     print(f"Started generation of #{i+1} object")
-                fl_object = FluorObj(typical_size=(a_r, b_r, angle), center_shifts=(i_shift, j_shift), shape_type='ellipse')
+                fl_object = FluorObj(typical_size=ellipse_sizes, center_shifts=(i_shift, j_shift), shape_type='ellipse')
                 fl_object.get_shape(accelerated=accelerated); fl_object.crop_shape()  # calculate normalized shape and crop it
                 fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
             if verbose_info:
@@ -233,8 +200,10 @@ class UscopeScene:
                 print(f"Overall generation took {elapsed_time_ov} milliseconds", flush=True)
         return tuple(fl_objects)
 
-    def get_objects_acc(self) -> tuple:
-        pass
+    def get_objects_acc(self, mean_size: Union[float, int, tuple], size_std: Union[float, int, tuple], intensity_range: tuple,
+                        n_objects: int = 2, shapes: str = 'round', image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
+                        verbose_info: bool = False) -> tuple:
+        pass  # TODO
 
     @staticmethod
     def get_round_objects(mean_size: float, size_std: float, intensity_range: tuple, n_objects: int = 2, shape_r_type: str = 'mixed',
