@@ -20,6 +20,7 @@ try:
     import numba
     if numba is not None:
         numba_installed = True
+    from numba import njit
 except ModuleNotFoundError:
     numba_installed = False
 
@@ -102,6 +103,7 @@ class UscopeScene:
                 self.max_pixel_value = 1.0; self.img_type = np.float64
         # Initialize zero scene
         self.image = np.zeros(shape=(height, width), dtype=self.img_type); self.shape = (self.height, self.width); self.__image_cleared = True
+        self.methods_precompiled = False  # flag for retaining if the objects shape calculation methods precompiled
 
     # %% Objects specification / generation
     @classmethod
@@ -203,7 +205,67 @@ class UscopeScene:
     def get_objects_acc(self, mean_size: Union[float, int, tuple], size_std: Union[float, int, tuple], intensity_range: tuple,
                         n_objects: int = 2, shapes: str = 'round', image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
                         verbose_info: bool = False) -> tuple:
-        pass  # TODO
+        if verbose_info:
+            t_ov_1 = time.perf_counter()
+        if shapes not in self.shape_types:
+            raise ValueError(f"Please provide the supported shape type for generation from a list: {cls.shape_types}")
+        if not numba_installed:
+            raise ValueError(f"Method can be called if only 'numba' package is installed")
+        fl_objects = []  # for storing generated objects
+        r = None; r_std = None  # default parameters for round objects
+        # Generation loop
+        for i in range(n_objects):
+            if verbose_info:
+                t1 = time.perf_counter()
+            if shapes == 'mixed':
+                shape_type, r, r_std = get_random_shape_props(mean_size, size_std)
+            else:
+                shape_type = shapes
+            # Random selection of object parameters: shifts, max intensity
+            i_shift, j_shift = get_random_central_shifts(); fl_intensity = get_random_max_intensity(intensity_range)
+            # Round shaped object generation
+            if shape_type == 'round' or shape_type == 'r':
+                radius = get_radius_gaussian(r, r_std, mean_size, size_std)  # Gaussian-distributed random value
+                # Generating the object and calculating its shape, cast and crop it
+                if verbose_info:
+                    print(f"Started generation of #{i+1} object")
+                fl_object = FluorObj(typical_size=radius, center_shifts=(i_shift, j_shift)); fl_object.get_shape(accelerated=True)
+                fl_object.crop_shape(); fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type)
+                fl_objects.append(fl_object)
+            # Ellipse shaped object generation
+            elif shape_type == 'ellipse' or shape_type == 'el':
+                ellipse_sizes = get_ellipse_sizes(mean_size, size_std)
+                if verbose_info:
+                    print(f"Started generation of #{i+1} object")
+                fl_object = FluorObj(typical_size=ellipse_sizes, center_shifts=(i_shift, j_shift), shape_type='ellipse')
+                fl_object.get_shape(accelerated=True); fl_object.crop_shape()  # calculate normalized shape and crop it
+                fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
+            if verbose_info:
+                elapsed_time = int(round(1000.0*(time.perf_counter() - t1), 0))
+                if elapsed_time > 1000:
+                    elapsed_time /= 1000.0; elapsed_time = round(elapsed_time, 1)
+                    print(f"Generated obj. #{i+1} out of {n_objects}, elapsed {elapsed_time} sec", flush=True)
+                else:
+                    print(f"Generated obj. #{i+1} out of {n_objects}, elapsed {elapsed_time} msec", flush=True)
+        if verbose_info:
+            elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
+            if elapsed_time_ov > 1000:
+                elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)
+                print(f"Overall generation took {elapsed_time_ov} seconds", flush=True)
+            else:
+                print(f"Overall generation took {elapsed_time_ov} milliseconds", flush=True)
+        return tuple(fl_objects)
+
+    def precompile_methods(self, verbose_info: bool=False):
+        if not self.methods_precompiled:
+            if verbose_info:
+                t_ov_1 = time.perf_counter()
+                print("*****Precompilation of shape generation methods started*****")
+            self.__round_fl_obj = FluorObj(typical_size=2.02, center_shifts=(0.1, -0.2)); self.__round_fl_obj.get_shape(accelerated=True)
+            self.__ellipse_fl_obj = FluorObj(typical_size=(2.02, 1.52, np.pi/3.0), center_shifts=(-0.1, 0.2), shape_type='ellipse')
+            self.__ellipse_fl_obj.get_shape(accelerated=True); self.methods_precompiled = True
+
+        return self.methods_precompiled
 
     @staticmethod
     def get_round_objects(mean_size: float, size_std: float, intensity_range: tuple, n_objects: int = 2, shape_r_type: str = 'mixed',

@@ -9,6 +9,7 @@ Default exports from this module (utils).
 import random
 from typing import Union
 import numpy as np
+import time
 
 
 # %% Function defs.
@@ -161,3 +162,12 @@ def get_ellipse_sizes(mean_size: tuple, size_std: tuple) -> tuple:
         else:
             b_r += random.uniform(1.1-b_r, 1.1)
     return (a_r, b_r, angle)
+
+
+def print_out_elapsed_t(initial_timing: int, operation: str = "operation"):
+    elapsed_time_ov = int(round(1000.0*(time.perf_counter() - initial_timing), 0))
+    if elapsed_time_ov > 1000:
+        elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)
+        print(f"Overall {operation} took {elapsed_time_ov} seconds", flush=True)
+    else:
+        print(f"Overall {operation} took {elapsed_time_ov} milliseconds", flush=True)
