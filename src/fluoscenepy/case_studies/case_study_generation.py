@@ -22,9 +22,10 @@ if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__m
     from fluoscene import UscopeScene, force_precompilation
 
 # %% Parameters - flags for making studies
-check_uncompiled_generation_performance = False
-check_globally_precompiled_methods = False
-check_compiled_method_class = True
+check_uncompiled_generation_performance = False  # checked
+check_globally_precompiled_methods = False  # checked
+check_compiled_method_class = False  # checked (TODO: add to tests)
+check_placing_objects = True
 
 # %% Script run
 if __name__ == "__main__":
@@ -40,7 +41,11 @@ if __name__ == "__main__":
     # Check class-binded accelerated methods
     if check_compiled_method_class:
         # objs = uscene.get_objects_acc(mean_size=2.0, size_std=0.05, intensity_range=(250, 255), n_objects=1, verbose_info=True)
-        uscene.precompile_methods()
+        uscene.precompile_methods(verbose_info=True)
         # objs2 = uscene.get_objects_acc(mean_size=4.0, size_std=0.25, intensity_range=(250, 255), n_objects=20, verbose_info=True)
         objs3 = uscene.get_objects_acc(mean_size=(8.0, 5.5), size_std=(0.5, 0.25), intensity_range=(250, 255),
                                        n_objects=15, verbose_info=True, shapes='mixed')
+    # Check various conditions and acceleration of objects placing on scene
+    if check_placing_objects:
+        objs4 = uscene.get_round_objects(mean_size=4.5, size_std=0.5, intensity_range=(254, 255), n_objects=2, image_type=np.uint16)
+        uscene.set_random_places(objs4, False, False, True)

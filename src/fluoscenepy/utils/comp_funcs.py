@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Default exports from this module (utils).
+Computational utility functions for 'fluoscenepy'.
 
 @author: Sergei Klykov
 
@@ -165,6 +165,21 @@ def get_ellipse_sizes(mean_size: tuple, size_std: tuple) -> tuple:
 
 
 def print_out_elapsed_t(initial_timing: int, operation: str = "operation"):
+    """
+    Print out the elapsed time in comparison to the initial counter (from time.perf_counter()) in ms or sec.
+
+    Parameters
+    ----------
+    initial_timing : int
+        Provided by time.perf_counter() timing counter.
+    operation : str, optional
+        Name of operation to be printed out. The default is "operation".
+
+    Returns
+    -------
+    None.
+
+    """
     elapsed_time_ov = int(round(1000.0*(time.perf_counter() - initial_timing), 0))
     if elapsed_time_ov > 1000:
         elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)

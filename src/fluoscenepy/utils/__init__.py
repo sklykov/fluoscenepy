@@ -6,4 +6,4 @@ Default exports from this module (utils).
 
 """
 
-__all__ = ['raw_objects_gen', 'compiled_objects_gen', 'comp_funcs']
+__all__ = ['raw_objects_gen', 'compiled_objects_gen', 'comp_funcs', 'acc_comp_funcs']

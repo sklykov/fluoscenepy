@@ -28,15 +28,17 @@ except ModuleNotFoundError:
 if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
     from utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
     from utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
-                                  get_ellipse_sizes)
+                                  get_ellipse_sizes, print_out_elapsed_t)
     if numba_installed:
         from utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
+        from utils.acc_comp_funcs import generate_coordinates_list
 else:
     from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
     from .utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
-                                  get_ellipse_sizes)
+                                  get_ellipse_sizes, print_out_elapsed_t)
     if numba_installed:
         from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
+        from .utils.acc_comp_funcs import generate_coordinates_list
 
 
 # %% Scene (image) class def.
@@ -264,7 +266,8 @@ class UscopeScene:
             self.__round_fl_obj = FluorObj(typical_size=2.02, center_shifts=(0.1, -0.2)); self.__round_fl_obj.get_shape(accelerated=True)
             self.__ellipse_fl_obj = FluorObj(typical_size=(2.02, 1.52, np.pi/3.0), center_shifts=(-0.1, 0.2), shape_type='ellipse')
             self.__ellipse_fl_obj.get_shape(accelerated=True); self.methods_precompiled = True
-
+            if verbose_info:
+                print_out_elapsed_t(t_ov_1, "precompilation")
         return self.methods_precompiled
 
     @staticmethod
@@ -391,28 +394,39 @@ class UscopeScene:
                         # Not overlapping, below - place the largest object and create the mask for preventing the overlapping
                         if not overlapping:
                             # Generate the meshgrid of all available for placing coordinates (depending on the placement flag)
-                            if not only_within_scene:
-                                self.__available_coordinates = [(i_a, j_a) for i_a in range(i_smallest, i_largest)
-                                                                for j_a in range(j_smallest, j_largest)]
+                            if not only_within_scene and len(fluo_objects) > 1:
+                                if not numba_installed:
+                                    self.__available_coordinates = [(i_a, j_a) for i_a in range(i_smallest, i_largest)
+                                                                    for j_a in range(j_smallest, j_largest)]
+                                else:
+                                    precomp_l = generate_coordinates_list(1, 3, 1, 3)  # precompile method for acceleration further calls
+                                    self.__available_coordinates = generate_coordinates_list(i_smallest, i_largest, j_smallest, j_largest)
                             else:
                                 # Below - keep the possible placement close to bottom and right edges of the scene and remove them later
-                                self.__available_coordinates = [(i_a, j_a) for i_a in range(i_smallest, h-2) for j_a in range(j_smallest, w-2)]
-                                self.__restricted_coordinates = [(i_a, j_a) for i_a in range(i_smallest, i_largest)
-                                                                 for j_a in range(j_smallest, j_largest)]
-                            # Generate and placing objects on the binary mask (instead of the real image or scene)
-                            self.__binary_placement_mask = np.zeros(shape=self.image.shape, dtype='uint8')
-                            for i in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border):
-                                for j in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border):
-                                    if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
-                                        self.__binary_placement_mask[i, j] = 1
-                            # Exclude the coordinates occupied by the placed object from the available choices for further placements
-                            coordinates_for_del = [(i_exc, j_exc) for i_exc in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border)
-                                                   for j_exc in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border)]
-                            for del_coord in coordinates_for_del:
-                                try:
-                                    self.__available_coordinates.remove(del_coord)
-                                except ValueError:
-                                    pass
+                                if not numba_installed:
+                                    self.__available_coordinates = [(i_a, j_a) for i_a in range(i_smallest, h-2) for j_a in range(j_smallest, w-2)]
+                                    self.__restricted_coordinates = [(i_a, j_a) for i_a in range(i_smallest, i_largest)
+                                                                     for j_a in range(j_smallest, j_largest)]
+                                else:
+                                    precomp_l = generate_coordinates_list(1, 3, 1, 3)  # precompile method for acceleration further calls
+                                    self.__available_coordinates = generate_coordinates_list(i_smallest, h-2, j_smallest, w-2)
+                                    self.__restricted_coordinates = generate_coordinates_list(i_smallest, i_largest, j_smallest, j_largest)
+                            # Generate the binary mask (instead of the real image or scene) for placing more than 1 object
+                            if len(fluo_objects) > 1:
+                                self.__binary_placement_mask = np.zeros(shape=self.image.shape, dtype='uint8')
+                                for i in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border):
+                                    for j in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border):
+                                        if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
+                                            self.__binary_placement_mask[i, j] = 1
+                                # Exclude the coordinates occupied by the placed object from the available choices for further placements
+                                coordinates_for_del = [(i_exc, j_exc)
+                                                       for i_exc in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border)
+                                                       for j_exc in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border)]
+                                for del_coord in coordinates_for_del:
+                                    try:
+                                        self.__available_coordinates.remove(del_coord)
+                                    except ValueError:
+                                        pass
                             filtered_fluo_obj.append(fluo_obj)  # storing the 1st placed and not overlapped objects
                             random.shuffle(self.__available_coordinates)  # shuffle available coordinates
                         fluo_obj.set_coordinates((i_obj, j_obj))  # set random place of the object within the image
