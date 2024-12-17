@@ -10,7 +10,7 @@ Case studies of implemented methods usage.
 from pathlib import Path
 import numpy as np
 import sys
-
+import matplotlib.pyplot as plt
 
 # %% Local (package-scoped) imports
 # Add the main script to the sys path for importing
@@ -24,7 +24,7 @@ if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__m
 # %% Parameters - flags for making studies
 check_uncompiled_generation_performance = False  # checked
 check_globally_precompiled_methods = False  # checked
-check_compiled_method_class = False  # checked (TODO: add to tests)
+check_compiled_method_class = False  # checked
 check_placing_objects = True
 
 # %% Script run
@@ -47,5 +47,7 @@ if __name__ == "__main__":
                                        n_objects=15, verbose_info=True, shapes='mixed')
     # Check various conditions and acceleration of objects placing on scene
     if check_placing_objects:
-        objs4 = uscene.get_round_objects(mean_size=4.5, size_std=0.5, intensity_range=(254, 255), n_objects=2, image_type=np.uint16)
-        uscene.set_random_places(objs4, False, False, True)
+        objs4 = uscene.get_round_objects(mean_size=10.5, size_std=1.5, intensity_range=(250, 255), n_objects=10, image_type=np.uint16)
+        placed_objs4 = uscene.set_random_places(objs4, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
+        uscene.put_objects_on(placed_objs4, save_only_objects_inside=True)
+        plt.close('all'); uscene.show_scene()

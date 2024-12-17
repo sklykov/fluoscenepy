@@ -28,17 +28,17 @@ except ModuleNotFoundError:
 if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
     from utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
     from utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
-                                  get_ellipse_sizes, print_out_elapsed_t)
+                                  get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list)
     if numba_installed:
         from utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
-        from utils.acc_comp_funcs import generate_coordinates_list
+        from utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
 else:
     from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
     from .utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
-                                  get_ellipse_sizes, print_out_elapsed_t)
+                                   get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list)
     if numba_installed:
         from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
-        from .utils.acc_comp_funcs import generate_coordinates_list
+        from .utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
 
 
 # %% Scene (image) class def.
@@ -376,6 +376,11 @@ class UscopeScene:
                 fluo_objects.sort()
             # Generating and set random placing coordinates of the upper left pixel for the objects
             placed_objects = 0  # for printing out the number of placed objects
+            # Placing loop for provided objects
+            if len(fluo_objects) > 1 and verbose_info and fluo_objects[0].profile is not None:
+                h_fl_obj, w_fl_obj = fluo_objects[0].profile.shape  # get the largest object sizes
+                if len(fluo_objects) >= 5 or (h_fl_obj > 10 and w_fl_obj > 10):
+                    print("***** Placing of objects started *****", flush=True)
             for fluo_obj in fluo_objects:
                 if fluo_obj.profile is not None:
                     h_fl_obj, w_fl_obj = fluo_obj.profile.shape  # get object sizes
@@ -404,7 +409,8 @@ class UscopeScene:
                             else:
                                 # Below - keep the possible placement close to bottom and right edges of the scene and remove them later
                                 if not numba_installed:
-                                    self.__available_coordinates = [(i_a, j_a) for i_a in range(i_smallest, h-2) for j_a in range(j_smallest, w-2)]
+                                    self.__available_coordinates = [(i_a, j_a) for i_a in range(i_smallest, h-2)
+                                                                    for j_a in range(j_smallest, w-2)]
                                     self.__restricted_coordinates = [(i_a, j_a) for i_a in range(i_smallest, i_largest)
                                                                      for j_a in range(j_smallest, j_largest)]
                                 else:
@@ -414,19 +420,29 @@ class UscopeScene:
                             # Generate the binary mask (instead of the real image or scene) for placing more than 1 object
                             if len(fluo_objects) > 1:
                                 self.__binary_placement_mask = np.zeros(shape=self.image.shape, dtype='uint8')
-                                for i in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border):
-                                    for j in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border):
-                                        if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
-                                            self.__binary_placement_mask[i, j] = 1
+                                if not numba_installed:
+                                    for i in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border):
+                                        for j in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border):
+                                            if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
+                                                self.__binary_placement_mask[i, j] = 1
+                                else:
+                                    self.__binary_placement_mask = set_binary_mask_coordinates(self.__binary_placement_mask,
+                                                                                               i_obj-additional_border,
+                                                                                               i_obj+h_fl_obj+additional_border,
+                                                                                               self.image.shape[0],
+                                                                                               j_obj-additional_border,
+                                                                                               j_obj+w_fl_obj+additional_border,
+                                                                                               self.image.shape[1])
                                 # Exclude the coordinates occupied by the placed object from the available choices for further placements
-                                coordinates_for_del = [(i_exc, j_exc)
-                                                       for i_exc in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border)
-                                                       for j_exc in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border)]
-                                for del_coord in coordinates_for_del:
-                                    try:
-                                        self.__available_coordinates.remove(del_coord)
-                                    except ValueError:
-                                        pass
+                                if not numba_installed:
+                                    coordinates_for_del = [(i_exc, j_exc)
+                                                           for i_exc in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border)
+                                                           for j_exc in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border)]
+                                else:
+                                    coordinates_for_del = generate_coordinates_list(i_obj-additional_border, i_obj+h_fl_obj+additional_border,
+                                                                                    j_obj-additional_border, j_obj+w_fl_obj+additional_border)
+                                self.__available_coordinates = delete_coordinates_from_list(coordinates_for_del,
+                                                                                            self.__available_coordinates)
                             filtered_fluo_obj.append(fluo_obj)  # storing the 1st placed and not overlapped objects
                             random.shuffle(self.__available_coordinates)  # shuffle available coordinates
                         fluo_obj.set_coordinates((i_obj, j_obj))  # set random place of the object within the image
@@ -486,20 +502,21 @@ class UscopeScene:
                                 if only_within_scene:
                                     coordinates_for_del = [(i_exc, j_exc) for i_exc in range(h-h_fl_obj, h-2) for j_exc in range(1, w-2)]
                                     coordinates_for_del += [(i_exc, j_exc) for i_exc in range(1, h-2) for j_exc in range(w-w_fl_obj, w-2)]
-                                    for del_coord in coordinates_for_del:
-                                        try:
-                                            available_correcting_coordinates.remove(del_coord)
-                                        except ValueError:
-                                            pass
+                                    available_correcting_coordinates = delete_coordinates_from_list(coordinates_for_del,
+                                                                                                    available_correcting_coordinates)
                                     border_coordinates_deleted = True
                             if len(available_correcting_coordinates) == 0:
                                 placed = False; break
                         # print("# of made attempts:", i_attempts)
                         # Exclude the coordinates occupied by the placed object from the meshgrid (list with coordinates pares)
                         if placed:
-                            coordinates_for_del = [(i_exc, j_exc)
-                                                   for i_exc in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border)
-                                                   for j_exc in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border)]
+                            if not numba_installed:
+                                coordinates_for_del = [(i_exc, j_exc)
+                                                       for i_exc in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border)
+                                                       for j_exc in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border)]
+                            else:
+                                coordinates_for_del = generate_coordinates_list(i_obj-additional_border, i_obj+h_fl_obj+additional_border,
+                                                                                j_obj-additional_border, j_obj+w_fl_obj+additional_border)
                             for del_coord in coordinates_for_del:
                                 try:
                                     self.__available_coordinates.remove(del_coord)
@@ -508,10 +525,17 @@ class UscopeScene:
                                 except ValueError:
                                     pass
                             # Exclude placed object from binary placement mask
-                            for i in range(i_obj, i_obj+h_fl_obj):
-                                for j in range(j_obj, j_obj+w_fl_obj):
-                                    if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
-                                        self.__binary_placement_mask[i, j] = 1
+                            if not numba_installed:
+                                for i in range(i_obj, i_obj+h_fl_obj):
+                                    for j in range(j_obj, j_obj+w_fl_obj):
+                                        if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
+                                            self.__binary_placement_mask[i, j] = 1
+                            else:
+                                self.__binary_placement_mask = set_binary_mask_coordinates(self.__binary_placement_mask,
+                                                                                           i_obj, i_obj+h_fl_obj,
+                                                                                           self.image.shape[0],
+                                                                                           j_obj, j_obj+w_fl_obj,
+                                                                                           self.image.shape[1])
                             fluo_obj.set_coordinates((i_obj, j_obj))  # if found place, place the object
                             filtered_fluo_obj.append(fluo_obj)  # collect for returning only placed object, excluding not placed ones
                             if len(fluo_objects) > 10 and verbose_info:

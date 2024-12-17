@@ -186,3 +186,30 @@ def print_out_elapsed_t(initial_timing: int, operation: str = "operation"):
         print(f"Overall {operation} took {elapsed_time_ov} seconds", flush=True)
     else:
         print(f"Overall {operation} took {elapsed_time_ov} milliseconds", flush=True)
+
+
+# @jit(nopython=False)  # this acceleration by numba library doesn't work, function used for shortening code from the main module
+def delete_coordinates_from_list(coordinates_list: list, input_list: list) -> list:
+    """
+    Delete coordinates from the copy of an input list.
+
+    Parameters
+    ----------
+    coordinates_list : list
+        List with coordinates to be deleted.
+    input_list: list
+        List for looking for and deleting the provided coordinates.
+
+    Returns
+    -------
+    list
+        Copy of an input list with the deleted coordinates.
+
+    """
+    cleaned_list = input_list[:]  # copy the input list
+    for del_coord in coordinates_list:
+        try:
+            cleaned_list.remove(del_coord)
+        except ValueError:
+            pass
+    return cleaned_list
