@@ -28,14 +28,14 @@ except ModuleNotFoundError:
 if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
     from utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
     from utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
-                                  get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list)
+                                  get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list, set_binary_mask_coords_in_loop)
     if numba_installed:
         from utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
         from utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
 else:
     from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
     from .utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
-                                   get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list)
+                                   get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list, set_binary_mask_coords_in_loop)
     if numba_installed:
         from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
         from .utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
@@ -150,8 +150,18 @@ class UscopeScene:
         """
         if verbose_info:
             t_ov_1 = time.perf_counter()
+        # Check input parameters for consistency
         if shapes not in cls.shape_types:
             raise ValueError(f"Please provide the supported shape type for generation from a list: {cls.shape_types}")
+        max_intensity = max(intensity_range); raise_exception = False  # define max provided intensity
+        if image_type == 'uint8' or image_type == np.uint8:
+            if max_intensity > cls.max_pixel_value_uint8:
+                raise_exception = True
+        elif image_type == 'uint16' or image_type == np.uint16:
+            if max_intensity > cls.max_pixel_value_uint16:
+                raise_exception = True
+        if raise_exception:
+            raise ValueError(f"Max intensity from the range {intensity_range} is incompatible with the provided image type {image_type}")
         fl_objects = []  # for storing generated objects
         r = None; r_std = None  # default parameters for round objects
         # Printout warning if the method called with parameters leading to the long calculations
@@ -165,6 +175,7 @@ class UscopeScene:
         for i in range(n_objects):
             if verbose_info:
                 t1 = time.perf_counter()
+                print(f"Started generation of #{i+1} object", flush=True)
             if shapes == 'mixed':
                 shape_type, r, r_std = get_random_shape_props(mean_size, size_std)
             else:
@@ -175,33 +186,19 @@ class UscopeScene:
             if shape_type == 'round' or shape_type == 'r':
                 radius = get_radius_gaussian(r, r_std, mean_size, size_std)  # Gaussian-distributed random value
                 # Generating the object and calculating its shape, cast and crop it
-                if verbose_info:
-                    print(f"Started generation of #{i+1} object")
                 fl_object = FluorObj(typical_size=radius, center_shifts=(i_shift, j_shift)); fl_object.get_shape(accelerated=accelerated)
                 fl_object.crop_shape(); fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type)
                 fl_objects.append(fl_object)
             # Ellipse shaped object generation
             elif shape_type == 'ellipse' or shape_type == 'el':
                 ellipse_sizes = get_ellipse_sizes(mean_size, size_std)
-                if verbose_info:
-                    print(f"Started generation of #{i+1} object")
                 fl_object = FluorObj(typical_size=ellipse_sizes, center_shifts=(i_shift, j_shift), shape_type='ellipse')
                 fl_object.get_shape(accelerated=accelerated); fl_object.crop_shape()  # calculate normalized shape and crop it
                 fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
             if verbose_info:
-                elapsed_time = int(round(1000.0*(time.perf_counter() - t1), 0))
-                if elapsed_time > 1000:
-                    elapsed_time /= 1000.0; elapsed_time = round(elapsed_time, 1)
-                    print(f"Generated obj. #{i+1} out of {n_objects}, elapsed {elapsed_time} sec", flush=True)
-                else:
-                    print(f"Generated obj. #{i+1} out of {n_objects}, elapsed {elapsed_time} msec", flush=True)
+                print_out_elapsed_t(t1, operation=f"Generation of obj. #{i+1} out of {n_objects}")
         if verbose_info:
-            elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
-            if elapsed_time_ov > 1000:
-                elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)
-                print(f"Overall generation took {elapsed_time_ov} seconds", flush=True)
-            else:
-                print(f"Overall generation took {elapsed_time_ov} milliseconds", flush=True)
+            print_out_elapsed_t(t_ov_1, operation="Overall generation")
         return tuple(fl_objects)
 
     def get_objects_acc(self, mean_size: Union[float, int, tuple], size_std: Union[float, int, tuple], intensity_range: tuple,
@@ -209,16 +206,28 @@ class UscopeScene:
                         verbose_info: bool = False) -> tuple:
         if verbose_info:
             t_ov_1 = time.perf_counter()
+        # Checking input values for consistency
         if shapes not in self.shape_types:
             raise ValueError(f"Please provide the supported shape type for generation from a list: {cls.shape_types}")
         if not numba_installed:
             raise ValueError(f"Method can be called if only 'numba' package is installed")
+        max_intensity = max(intensity_range); raise_exception = False  # define max provided intensity
+        if image_type == 'uint8' or image_type == np.uint8:
+            if max_intensity > self.max_pixel_value_uint8:
+                raise_exception = True
+        elif image_type == 'uint16' or image_type == np.uint16:
+            if max_intensity > self.max_pixel_value_uint16:
+                raise_exception = True
+        if raise_exception:
+            raise ValueError(f"Max intensity from the range {intensity_range} is incompatible with the provided image type {image_type}")
+        # Generation parameters
         fl_objects = []  # for storing generated objects
         r = None; r_std = None  # default parameters for round objects
         # Generation loop
         for i in range(n_objects):
             if verbose_info:
                 t1 = time.perf_counter()
+                print(f"Started generation of #{i+1} object", flush=True)
             if shapes == 'mixed':
                 shape_type, r, r_std = get_random_shape_props(mean_size, size_std)
             else:
@@ -229,33 +238,19 @@ class UscopeScene:
             if shape_type == 'round' or shape_type == 'r':
                 radius = get_radius_gaussian(r, r_std, mean_size, size_std)  # Gaussian-distributed random value
                 # Generating the object and calculating its shape, cast and crop it
-                if verbose_info:
-                    print(f"Started generation of #{i+1} object")
                 fl_object = FluorObj(typical_size=radius, center_shifts=(i_shift, j_shift)); fl_object.get_shape(accelerated=True)
                 fl_object.crop_shape(); fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type)
                 fl_objects.append(fl_object)
             # Ellipse shaped object generation
             elif shape_type == 'ellipse' or shape_type == 'el':
                 ellipse_sizes = get_ellipse_sizes(mean_size, size_std)
-                if verbose_info:
-                    print(f"Started generation of #{i+1} object")
                 fl_object = FluorObj(typical_size=ellipse_sizes, center_shifts=(i_shift, j_shift), shape_type='ellipse')
                 fl_object.get_shape(accelerated=True); fl_object.crop_shape()  # calculate normalized shape and crop it
                 fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
             if verbose_info:
-                elapsed_time = int(round(1000.0*(time.perf_counter() - t1), 0))
-                if elapsed_time > 1000:
-                    elapsed_time /= 1000.0; elapsed_time = round(elapsed_time, 1)
-                    print(f"Generated obj. #{i+1} out of {n_objects}, elapsed {elapsed_time} sec", flush=True)
-                else:
-                    print(f"Generated obj. #{i+1} out of {n_objects}, elapsed {elapsed_time} msec", flush=True)
+                print_out_elapsed_t(t1, operation=f"Generation of obj. #{i+1} out of {n_objects}")
         if verbose_info:
-            elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
-            if elapsed_time_ov > 1000:
-                elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)
-                print(f"Overall generation took {elapsed_time_ov} seconds", flush=True)
-            else:
-                print(f"Overall generation took {elapsed_time_ov} milliseconds", flush=True)
+            print_out_elapsed_t(t_ov_1, operation="Overall generation")
         return tuple(fl_objects)
 
     def precompile_methods(self, verbose_info: bool=False):
@@ -267,7 +262,7 @@ class UscopeScene:
             self.__ellipse_fl_obj = FluorObj(typical_size=(2.02, 1.52, np.pi/3.0), center_shifts=(-0.1, 0.2), shape_type='ellipse')
             self.__ellipse_fl_obj.get_shape(accelerated=True); self.methods_precompiled = True
             if verbose_info:
-                print_out_elapsed_t(t_ov_1, "precompilation")
+                print_out_elapsed_t(t_ov_1, "Precompilation")
         return self.methods_precompiled
 
     @staticmethod
@@ -366,7 +361,7 @@ class UscopeScene:
                 filtered_fluo_obj = []  # storing the objects in the list for excluding the not placed objects if they are not overlapped
                 additional_border = 0
                 if not touching:
-                    additional_border = 1  # additional 2 pixels for excluding the pixels close to the object borders
+                    additional_border = 1  # additional 1 pixel for excluding the pixels close to the object borders
             # If only_within_scene, sort out the objects based on their sizes and place first the largest one, if not - the smallest one
             if not overlapping or (overlapping and only_within_scene):
                 fluo_objects = list(fluo_objects)  # convert for applying embedded sorting algorithm
@@ -374,15 +369,27 @@ class UscopeScene:
                 fluo_objects.sort(reverse=True)
             elif not overlapping and not only_within_scene:
                 fluo_objects.sort()
-            # Generating and set random placing coordinates of the upper left pixel for the objects
-            placed_objects = 0  # for printing out the number of placed objects
-            # Placing loop for provided objects
+            # Printing out the warning messages (obtained for some useful cases and flags)
             if len(fluo_objects) > 1 and verbose_info and fluo_objects[0].profile is not None:
                 h_fl_obj, w_fl_obj = fluo_objects[0].profile.shape  # get the largest object sizes
                 if len(fluo_objects) >= 5 or (h_fl_obj > 10 and w_fl_obj > 10):
-                    print("***** Placing of objects started *****", flush=True)
+                    if not numba_installed:
+                        print("NOTE: Placing algorithm can take quite a long time (depending on the size of objects and scene). \n"
+                              + "For acceleration of it install library 'numba' with the recommended version >= 0.60.0", flush=True)
+                    print(f"***** Placing of {len(fluo_objects)} objects started *****", flush=True)
+            if verbose_info and not overlapping:
+                if not numba_installed:
+                    if h*w > 35000:
+                        print("Note that placing algorithm can take long time, starting from several dozens of seconds", flush=True)
+                else:
+                    if h*w > 110000:
+                        print("Note that placing algorithm can take long time, starting from several dozens of seconds", flush=True)
+            # Placing loop for provided objects (set random placing coordinates of the upper left pixel for the objects)
+            placed_objects = 0  # for printing out the number of placed objects
             for fluo_obj in fluo_objects:
                 if fluo_obj.profile is not None:
+                    if verbose_info:
+                        print(f"Started placing of #{placed_objects+1} object", flush=True)
                     h_fl_obj, w_fl_obj = fluo_obj.profile.shape  # get object sizes
                     fluo_obj.set_image_sizes(self.image.shape)  # force to account for the used scene shape
                     # Placement logic, if overlapping is allowed - just random spreading objects on the scene
@@ -421,11 +428,15 @@ class UscopeScene:
                             if len(fluo_objects) > 1:
                                 self.__binary_placement_mask = np.zeros(shape=self.image.shape, dtype='uint8')
                                 if not numba_installed:
-                                    for i in range(i_obj-additional_border, i_obj+h_fl_obj+additional_border):
-                                        for j in range(j_obj-additional_border, j_obj+w_fl_obj+additional_border):
-                                            if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
-                                                self.__binary_placement_mask[i, j] = 1
+                                    self.__binary_placement_mask = set_binary_mask_coords_in_loop(self.__binary_placement_mask,
+                                                                                                  i_obj-additional_border,
+                                                                                                  i_obj+h_fl_obj+additional_border,
+                                                                                                  self.image.shape[0],
+                                                                                                  j_obj-additional_border,
+                                                                                                  j_obj+w_fl_obj+additional_border,
+                                                                                                  self.image.shape[1])
                                 else:
+                                    precompl_mask = set_binary_mask_coordinates(np.zeros((2, 2)), 0, 1, 2, 0, 1, 2)  # precompilation
                                     self.__binary_placement_mask = set_binary_mask_coordinates(self.__binary_placement_mask,
                                                                                                i_obj-additional_border,
                                                                                                i_obj+h_fl_obj+additional_border,
@@ -445,9 +456,9 @@ class UscopeScene:
                                                                                             self.__available_coordinates)
                             filtered_fluo_obj.append(fluo_obj)  # storing the 1st placed and not overlapped objects
                             random.shuffle(self.__available_coordinates)  # shuffle available coordinates
-                        fluo_obj.set_coordinates((i_obj, j_obj))  # set random place of the object within the image
-                        if len(fluo_objects) > 10 and verbose_info and not overlapping:
-                            placed_objects += 1; print("# of placed objects:", placed_objects, "out of", len(fluo_objects))
+                        fluo_obj.set_coordinates((i_obj, j_obj)); placed_objects += 1  # set random place of the object within the image
+                        if verbose_info:
+                            print("# of placed objects:", placed_objects, "out of", len(fluo_objects), flush=True)
                     else:
                         # Trying to place the object in the randomly selected from remaining coordinates place and checking if there is no
                         # intersections with already placed objects, regulate # of attempts to place below in the while condition
@@ -507,7 +518,6 @@ class UscopeScene:
                                     border_coordinates_deleted = True
                             if len(available_correcting_coordinates) == 0:
                                 placed = False; break
-                        # print("# of made attempts:", i_attempts)
                         # Exclude the coordinates occupied by the placed object from the meshgrid (list with coordinates pares)
                         if placed:
                             if not numba_installed:
@@ -526,10 +536,11 @@ class UscopeScene:
                                     pass
                             # Exclude placed object from binary placement mask
                             if not numba_installed:
-                                for i in range(i_obj, i_obj+h_fl_obj):
-                                    for j in range(j_obj, j_obj+w_fl_obj):
-                                        if 0 <= i < self.image.shape[0] and 0 <= j < self.image.shape[1]:
-                                            self.__binary_placement_mask[i, j] = 1
+                                self.__binary_placement_mask = set_binary_mask_coords_in_loop(self.__binary_placement_mask,
+                                                                                              i_obj, i_obj+h_fl_obj,
+                                                                                              self.image.shape[0],
+                                                                                              j_obj, j_obj+w_fl_obj,
+                                                                                              self.image.shape[1])
                             else:
                                 self.__binary_placement_mask = set_binary_mask_coordinates(self.__binary_placement_mask,
                                                                                            i_obj, i_obj+h_fl_obj,
@@ -537,20 +548,14 @@ class UscopeScene:
                                                                                            j_obj, j_obj+w_fl_obj,
                                                                                            self.image.shape[1])
                             fluo_obj.set_coordinates((i_obj, j_obj))  # if found place, place the object
-                            filtered_fluo_obj.append(fluo_obj)  # collect for returning only placed object, excluding not placed ones
-                            if len(fluo_objects) > 10 and verbose_info:
-                                placed_objects += 1
-                                print("# of placed objects:", placed_objects, "out of", len(fluo_objects))
+                            filtered_fluo_obj.append(fluo_obj); placed_objects += 1  # collect for returning only placed objects
+                            if verbose_info:
+                                print("# of placed objects:", placed_objects, "out of", len(fluo_objects), flush=True)
             if not overlapping:
                 fluo_objects = tuple(filtered_fluo_obj)  # convert list -> tuple for returning only placed objects
                 # plt.figure("Binary Placement Mask"); plt.imshow(self.__binary_placement_mask)  # plot the occupied places by the objects
             if verbose_info:
-                elapsed_time = int(round(1000.0*(time.perf_counter() - t1), 0))
-                if elapsed_time < 1000:
-                    print(f"Placing of {n_objects} objects takes: {elapsed_time} msec", flush=True)
-                else:
-                    elapsed_time /= 1000.0; elapsed_time = round(elapsed_time, 1)
-                    print(f"Placing of {n_objects} objects takes: {elapsed_time} sec", flush=True)
+                print_out_elapsed_t(t1, operation=f"Placing of {n_objects} objects")
         return fluo_objects
 
     # %% Put objects on the scene
