@@ -30,7 +30,7 @@ check_uncompiled_generation_performance = False  # checked
 check_globally_precompiled_methods = False  # checked
 check_compiled_method_class = False  # checked
 check_placing_objects = False  # checked
-check_actual_objects_gen = True
+check_actual_objects_gen = False  # checked
 
 # %% Script run
 if __name__ == "__main__":
@@ -57,13 +57,14 @@ if __name__ == "__main__":
         uscene.put_objects_on(placed_objs4, save_only_objects_inside=True); plt.close('all'); uscene.show_scene()
     # Check generation with useful parameters
     if check_actual_objects_gen:
-        uscene = UscopeScene(width=240, height=190, image_type=np.uint8)
-        fl_objs = uscene.get_objects_acc(mean_size=(20, 12), size_std=(6, 3.8), shapes='mixed', intensity_range=(238, 253),
-                                         image_type=uscene.img_type, n_objects=16, verbose_info=True)
+        uscene = UscopeScene(width=252, height=211, image_type=np.uint8)
+        obj_mean_sizes = (40, 34); obj_sizes_std = (12, 8.8); obj_intensities = (220, 255)
+        fl_objs = uscene.get_objects_acc(mean_size=obj_mean_sizes, size_std=obj_sizes_std, shapes='mixed', intensity_range=obj_intensities,
+                                         image_type=uscene.img_type, n_objects=22, verbose_info=True)
         placed_objs = uscene.set_random_places(fl_objs, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         uscene.put_objects_on(placed_objs, save_only_objects_inside=True); plt.close('all'); uscene.show_scene()
         if imsave is not None:
             current_path = Path.home().joinpath("Desktop")
             if current_path.exists():
-                file_path = current_path.joinpath("Fluoscene.tiff")
+                file_path = current_path.joinpath(f"Fluoscene_ObjSizes{obj_mean_sizes}_STD{obj_sizes_std}_I{obj_intensities}.tiff")
                 imsave(file_path.absolute(), uscene.image)

@@ -164,13 +164,13 @@ def get_ellipse_sizes(mean_size: tuple, size_std: tuple) -> tuple:
     return (a_r, b_r, angle)
 
 
-def print_out_elapsed_t(initial_timing: int, operation: str = "Operation"):
+def print_out_elapsed_t(initial_timing: float, operation: str = "Operation"):
     """
     Print out the elapsed time in comparison to the initial counter (from time.perf_counter()) in ms or sec.
 
     Parameters
     ----------
-    initial_timing : int
+    initial_timing : float
         Provided by time.perf_counter() timing counter.
     operation : str, optional
         Name of operation to be printed out. The default is "operation".
