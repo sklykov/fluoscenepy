@@ -30,7 +30,7 @@ check_uncompiled_generation_performance = False  # checked
 check_globally_precompiled_methods = False  # checked
 check_compiled_method_class = False  # checked
 check_placing_objects = False  # checked
-check_actual_objects_gen = False  # checked
+check_actual_objects_gen = False  # checked, both U8 and U16 images generation
 
 # %% Script run
 if __name__ == "__main__":
@@ -57,10 +57,10 @@ if __name__ == "__main__":
         uscene.put_objects_on(placed_objs4, save_only_objects_inside=True); plt.close('all'); uscene.show_scene()
     # Check generation with useful parameters
     if check_actual_objects_gen:
-        uscene = UscopeScene(width=252, height=211, image_type=np.uint8)
-        obj_mean_sizes = (40, 34); obj_sizes_std = (12, 8.8); obj_intensities = (220, 255)
+        uscene = UscopeScene(width=320, height=280, image_type=np.uint16)
+        obj_mean_sizes = (16, 12); obj_sizes_std = (5, 3.5); obj_intensities = (28000, 42000)
         fl_objs = uscene.get_objects_acc(mean_size=obj_mean_sizes, size_std=obj_sizes_std, shapes='mixed', intensity_range=obj_intensities,
-                                         image_type=uscene.img_type, n_objects=22, verbose_info=True)
+                                         image_type=uscene.img_type, n_objects=25, verbose_info=True)
         placed_objs = uscene.set_random_places(fl_objs, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         uscene.put_objects_on(placed_objs, save_only_objects_inside=True); plt.close('all'); uscene.show_scene()
         if imsave is not None:

@@ -426,7 +426,7 @@ class UscopeScene:
                 if len(fluo_objects) >= 5 or (h_fl_obj > 10 and w_fl_obj > 10):
                     if not numba_installed:
                         print("NOTE: Placing algorithm can take quite a long time (depending on the size of objects and scene). \n"
-                              + "For acceleration of it install library 'numba' with the recommended version >= 0.60.0", flush=True)
+                              + "For acceleration of it install library 'numba' with the recommended version >= 0.57.1", flush=True)
                     print(f"***** Placing of {len(fluo_objects)} objects started *****", flush=True)
             if verbose_info and not overlapping:
                 if not numba_installed:
@@ -1387,6 +1387,8 @@ def force_precompilation():
         __warn_message = "Acceleration isn't possible because 'numba' library not installed in the current environment"
         warnings.warn(__warn_message)
 
+# %% Define default export classes and methods used with import * statement (import * from fluoscenepy)
+__all__ = ['UscopeScene', 'FluorObj', 'force_precompilation']
 
 # %% Tests of different scenarios
 if __name__ == "__main__":
