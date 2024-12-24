@@ -1,6 +1,6 @@
 [project]
 name = "fluoscenepy"
-# version = "0.0.1"  # Manual specification of the version
+# version = "0.0..."  # Manual specification of the version in this file
 dynamic = ["version"]  # Discovering of the version by the setuptools (see below: in the 'file' or 'attr')
 authors = [
     {name = "Sergei Klykov"},
@@ -20,7 +20,7 @@ dependencies = [
     "numpy",
     "matplotlib",
 ]
-keywords = ["fluorescent microscopic image simulaiton"]
+keywords = ["fluorescent microscopic image simulation"]
 
 [project.urls]  # METADATA in wheel file will represent the data below by using pip show zernpy -v
 # The links below are mapped / parced by the PyPi website
