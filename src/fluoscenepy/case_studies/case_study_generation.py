@@ -10,7 +10,11 @@ Case studies of implemented methods usage.
 from pathlib import Path
 import numpy as np
 import sys
-
+import matplotlib.pyplot as plt
+try:
+    from skimage.io import imsave
+except (ModuleNotFoundError, ImportError):
+    imsave = None
 
 # %% Local (package-scoped) imports
 # Add the main script to the sys path for importing
@@ -22,8 +26,11 @@ if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__m
     from fluoscene import UscopeScene, force_precompilation
 
 # %% Parameters - flags for making studies
-check_uncompiled_generation_performance = False
-check_globally_precompiled_methods = False
+check_uncompiled_generation_performance = False  # checked
+check_globally_precompiled_methods = False  # checked
+check_compiled_method_class = False  # checked
+check_placing_objects = False  # checked
+check_actual_objects_gen = False  # checked, both U8 and U16 images generation
 
 # %% Script run
 if __name__ == "__main__":
@@ -37,3 +44,27 @@ if __name__ == "__main__":
         objs = uscene.get_random_objects(mean_size=4.0, size_std=0.25, intensity_range=(250, 255), n_objects=30, verbose_info=True,
                                          accelerated=True)  # for round objects: ~ 295-305 ms calculation
     # Check class-binded accelerated methods
+    if check_compiled_method_class:
+        # objs = uscene.get_objects_acc(mean_size=2.0, size_std=0.05, intensity_range=(250, 255), n_objects=1, verbose_info=True)
+        uscene.precompile_methods(verbose_info=True)
+        # objs2 = uscene.get_objects_acc(mean_size=4.0, size_std=0.25, intensity_range=(250, 255), n_objects=20, verbose_info=True)
+        objs3 = uscene.get_objects_acc(mean_size=(8.0, 5.5), size_std=(0.5, 0.25), intensity_range=(250, 255),
+                                       n_objects=15, verbose_info=True, shapes='mixed')
+    # Check various conditions and acceleration of objects placing on scene
+    if check_placing_objects:
+        objs4 = uscene.get_round_objects(mean_size=10.5, size_std=1.5, intensity_range=(250, 255), n_objects=40, image_type=np.uint16)
+        placed_objs4 = uscene.set_random_places(objs4, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
+        uscene.put_objects_on(placed_objs4, save_only_objects_inside=True); plt.close('all'); uscene.show_scene()
+    # Check generation with useful parameters
+    if check_actual_objects_gen:
+        uscene = UscopeScene(width=320, height=280, image_type=np.uint16)
+        obj_mean_sizes = (16, 12); obj_sizes_std = (5, 3.5); obj_intensities = (28000, 42000)
+        fl_objs = uscene.get_objects_acc(mean_size=obj_mean_sizes, size_std=obj_sizes_std, shapes='mixed', intensity_range=obj_intensities,
+                                         image_type=uscene.img_type, n_objects=25, verbose_info=True)
+        placed_objs = uscene.set_random_places(fl_objs, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
+        uscene.put_objects_on(placed_objs, save_only_objects_inside=True); plt.close('all'); uscene.show_scene()
+        if imsave is not None:
+            current_path = Path.home().joinpath("Desktop")
+            if current_path.exists():
+                file_path = current_path.joinpath(f"Fluoscene_ObjSizes{obj_mean_sizes}_STD{obj_sizes_std}_I{obj_intensities}.tiff")
+                imsave(file_path.absolute(), uscene.image)

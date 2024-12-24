@@ -557,7 +557,7 @@ __all__ = ['continuous_shaped_bead', 'discrete_shaped_bead', 'discrete_shaped_el
 # %% Tests
 if __name__ == "__main__":
     test_disk_show = False; test_ellipse_centered = False; test_ellipse_shifted = False; figsizes = (6.5, 6.5); plt.close('all')
-    prepare_sample_image_intersections = True  # for making intersection graph for the README file
+    prepare_sample_image_intersections = False  # for making intersection graph for the README file
     # Testing disk (circle or bead) representation
     if test_disk_show:
         i_shift = 0.23; j_shift = -0.591; disk_r = 6.0; r = np.arange(start=0.0, stop=1.3, step=0.02)
@@ -584,7 +584,7 @@ if __name__ == "__main__":
         axes_img.axes.add_patch(Ellipse((n_center, m_center), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
         axes_img.axes.plot(m_center, n_center, marker='.', linewidth=3.5, color='red')
     if test_ellipse_shifted:
-        a = 6.8; b = 2.69; j_shift = -0.36; i_shift = 0.78; shifts = (j_shift, i_shift); angle_grad = 10.0; angle = (angle_grad*np.pi)/180.0
+        a = 6.8; b = 2.69; j_shift = -0.36; i_shift = 0.78; shifts = (j_shift, i_shift); angle_grad = 120.0; angle = (angle_grad*np.pi)/180.0
         ellipse_centered = discrete_shaped_ellipse((a, b), angle, shifts)
         plt.figure(figsize=figsizes); axes_img = plt.imshow(ellipse_centered, cmap=plt.cm.viridis); plt.tight_layout()
         m_center, n_center = ellipse_centered.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift

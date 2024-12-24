@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Default exports from this module (utils).
+Computational utility functions for 'fluoscenepy'.
 
 @author: Sergei Klykov
 
@@ -9,6 +9,7 @@ Default exports from this module (utils).
 import random
 from typing import Union
 import numpy as np
+import time
 
 
 # %% Function defs.
@@ -161,3 +162,90 @@ def get_ellipse_sizes(mean_size: tuple, size_std: tuple) -> tuple:
         else:
             b_r += random.uniform(1.1-b_r, 1.1)
     return (a_r, b_r, angle)
+
+
+def print_out_elapsed_t(initial_timing: float, operation: str = "Operation"):
+    """
+    Print out the elapsed time in comparison to the initial counter (from time.perf_counter()) in ms or sec.
+
+    Parameters
+    ----------
+    initial_timing : float
+        Provided by time.perf_counter() timing counter.
+    operation : str, optional
+        Name of operation to be printed out. The default is "operation".
+
+    Returns
+    -------
+    None.
+
+    """
+    elapsed_time_ov = int(round(1000.0*(time.perf_counter() - initial_timing), 0))
+    if elapsed_time_ov > 1000:
+        elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)
+        print(f"{operation} took: {elapsed_time_ov} seconds", flush=True)
+    else:
+        print(f"{operation} took: {elapsed_time_ov} milliseconds", flush=True)
+
+
+# @jit(nopython=False)  # this acceleration by numba library doesn't work, function used for shortening code from the main module
+def delete_coordinates_from_list(coordinates_list: list, input_list: list) -> list:
+    """
+    Delete coordinates from the copy of an input list.
+
+    Parameters
+    ----------
+    coordinates_list : list
+        List with coordinates to be deleted.
+    input_list: list
+        List for looking for and deleting the provided coordinates.
+
+    Returns
+    -------
+    list
+        Copy of an input list with the deleted coordinates.
+
+    """
+    cleaned_list = input_list[:]  # copy the input list
+    for del_coord in coordinates_list:
+        try:
+            cleaned_list.remove(del_coord)
+        except ValueError:
+            pass
+    return cleaned_list
+
+
+def set_binary_mask_coords_in_loop(binary_mask: np.ndarray, i_obj_start: int, i_obj_end: int, i_limit: int,
+                                   j_obj_start: int, j_obj_end: int, j_limit: int) -> np.ndarray:
+    """
+    Set the binary mask for the provided object (profile of an object) coordinates.
+
+    Parameters
+    ----------
+    binary_mask : numpy.ndarray
+        Binary mask used for avoiding objects intersection.
+    i_obj_start : int
+        Start i index.
+    i_obj_end : int
+        Stop i index.
+    i_limit : int
+        Upper limit for i index.
+    j_obj_start : int
+        Start j index.
+    j_obj_end : int
+        Stop j index.
+    j_limit : int
+        Upper limit for j index.
+
+    Returns
+    -------
+    binary_mask : numpy.ndarray
+        Processed binary mask.
+
+    """
+    binary_mask = binary_mask.copy()  # automatically coping the income array and working on it
+    for i in range(i_obj_start, i_obj_end):
+        for j in range(j_obj_start, j_obj_end):
+            if 0 <= i < i_limit and 0 <= j < j_limit:
+                binary_mask[i, j] = 1
+    return binary_mask

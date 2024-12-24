@@ -62,12 +62,15 @@ def test_fluorobj_initialization():
         pass
     flobj = FluorObj(typical_size=4.75); flobj.get_shape(); flobj.crop_shape()
     assert flobj.profile.shape[0] > 4 and flobj.profile.shape[1] > 4, f"Profile sizes out of the expected range (5, 5): {flobj.profile.shape}"
-    flobj = FluorObj(typical_size=(4.2, 5.1, 0.25*np.pi), shape_type='el'); flobj.get_shape()
+    flobj = FluorObj(typical_size=(4.2, 5.1, 0.25*np.pi), shape_type='el'); flobj.get_shape(accelerated=False)
     flobj.get_casted_shape(max_pixel_value=1921, image_type='uint16'); flobj.crop_shape(); flobj.crop_shape()
     assert flobj.profile.shape == flobj.casted_profile.shape, "Profile and casted profile shapes aren't equa or double cropping causes errors"
     flobj = FluorObj(typical_size=2.0); flobj.get_shape(accelerated=True)
     assert flobj.profile.shape[1] == 3 and flobj.profile.shape[0] == 3, ("Profile sizes out of the expected range (3, 3): "
                                                                          + f"{flobj.profile.shape}")
+    flobj = FluorObj(typical_size=(3.2, 4.2, -0.51*np.pi), shape_type='el'); flobj.get_shape(accelerated=True); flobj.crop_shape()
+    flobj.get_casted_shape(max_pixel_value=100.0, image_type=np.float64)
+    assert np.max(flobj.casted_profile) >= 100.0, f"Profile not casted properly, max value: {np.max(flobj.profile)}"
 
 
 def test_objects_generation():
@@ -82,3 +85,16 @@ def test_objects_generation():
     placed_objs = scene2.set_random_places(precise_objs, overlapping=False, touching=False, only_within_scene=True)
     scene2.put_objects_on(placed_objs, save_only_objects_inside=True)
     assert len(placed_objs) <= len(precise_objs), "Number of placed objects more than number of generated 'precise' objects"
+    accelerated_method_called = False
+    try:
+        import numba
+        numba_not_installed = False
+        if numba is not None and not numba_not_installed:
+            objs3 = scene2.get_objects_acc(mean_size=(3.75, 3.0), size_std=(0.25, 0.19), intensity_range=(240, 255), n_objects=3, shapes='mixed')
+            assert len(objs3) == 3, f"Number of generation objects by accelerated method is less than 3: {len(objs3)}"
+            accelerated_method_called = True
+    except (ModuleNotFoundError, ImportError):
+        numba_not_installed = True
+    if numba_not_installed:
+        if accelerated_method_called:
+            assert False, "Accelerated method called wrongly"
