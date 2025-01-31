@@ -124,8 +124,9 @@ def get_radius_gaussian(r: Union[float, int, None], r_std: Union[float, int, Non
             raise ValueError("Provided tuple with sizes for round shaped object, there expected only single number size")
         radius = random.gauss(mu=mean_size, sigma=size_std)
     # Checking generated radius for consistency
+    radius = abs(radius)  # Gaussian distribution -> negative values also generated
     if radius < 0.5:
-        radius += random.uniform(a=0.6-radius, b=0.6)
+        radius += random.uniform(a=0.51-radius, b=0.51)
     return radius
 
 
@@ -150,17 +151,17 @@ def get_ellipse_sizes(mean_size: tuple, size_std: tuple) -> tuple:
     a_r = random.gauss(mu=a, sigma=a_std); b_r = random.gauss(mu=b, sigma=b_std)
     angle = random.uniform(a=0.0, b=2.0*np.pi)  # get random orientation for an ellipse
     a_r = abs(a_r); b_r = abs(b_r)  # sizes must be > 0
-    # Checking generated a_r, b_r axes for consistency (min axis >= 0.5, max axis >= 1.0)
-    if a_r < 0.5:
-        a_r += random.uniform(0.6-a_r, 0.6)
-    elif b_r < 0.5:
-        b_r += random.uniform(0.6-b_r, 0.6)
+    # Checking generated a_r, b_r axes for consistency (min axis >= 1.0, max axis >= 1.5)
+    if a_r < 1.0:
+        a_r += random.uniform(1.01-a_r, 1.01)
+    elif b_r < 1.0:
+        b_r += random.uniform(1.01-b_r, 1.01)
     max_axis = max(a_r, b_r)
-    if max_axis < 1.0:
+    if max_axis < 1.5:
         if a_r == max_axis:
-            a_r += random.uniform(1.1-a_r, 1.1)
+            a_r += random.uniform(1.51-a_r, 1.51)
         else:
-            b_r += random.uniform(1.1-b_r, 1.1)
+            b_r += random.uniform(1.51-b_r, 1.51)
     return (a_r, b_r, angle)
 
 
