@@ -14,6 +14,7 @@ import numpy as np
 
 if __name__ != "__main__":
     from ..fluoscene import UscopeScene, FluorObj
+    from ..utils.comp_funcs import get_radius_gaussian, get_ellipse_sizes
 
 
 # %% Tests
@@ -118,10 +119,25 @@ def test_objects_generation():
 
 def test_other_methods():
     scene4 = UscopeScene(width=63, height=57)
-    objs4 = scene4.get_objects_acc(mean_size=(3.75, 3.0), size_std=(0.25, 0.19), intensity_range=(195, 235),
-                                   n_objects=4, shapes='mixed')
+    try:
+        import numba
+        if numba is not None:
+            objs4 = scene4.get_objects_acc(mean_size=(3.75, 3.0), size_std=(0.25, 0.19), intensity_range=(195, 235),
+                                           n_objects=4, shapes='mixed')
+    except (ModuleNotFoundError, ImportError):
+        objs4 = scene4.get_random_objects(mean_size=(3.75, 3.0), size_std=(0.25, 0.19), intensity_range=(195, 235),
+                                          n_objects=4, shapes='mixed')
     placed_objs = scene4.set_random_places(objs4, overlapping=False, touching=False, only_within_scene=True)
     scene4.put_objects_on(placed_objs, save_only_objects_inside=True)
     noisy_img = UscopeScene.noise2image(scene4.image)
     assert noisy_img.shape == scene4.image.shape, "Shapes of input and output images for noise2image() method not equal"
     assert np.max(noisy_img) != np.max(scene4.image), "Max pixel values for noisy and source image should be different"
+
+
+def test_radiuses_generation():
+    for i in range(250):
+        r = get_radius_gaussian(r=2.0, r_std=1.2, mean_size=2.0, size_std=1.2)
+        assert r >= 0.5, f"Generated r < 0.5: {round(r, 3)}"
+        a, b, angle = get_ellipse_sizes(mean_size=(4.0, 3.0), size_std=(2.0, 1.5))
+        r_min = min(a, b); r_max = max(a, b)
+        assert r_min > 1.0 and r_max > 1.5, f"Sizes for ellipse {a, b} less smallest values"

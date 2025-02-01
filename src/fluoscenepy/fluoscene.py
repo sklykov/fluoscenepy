@@ -370,7 +370,7 @@ class UscopeScene:
                 fl_intensity = random.uniform(a=min_intensity, b=max_intensity)
             # Checking generated radius for consistency
             if radius < 0.5:
-                radius += random.uniform(a=0.51-radius, b=.51)
+                radius += random.uniform(a=1.0-radius, b=1.0)
             # If mixed type, selecting randomly the shape type
             if shape_r_type == 'mixed':
                 shape_sel_type = random.choice(shape_types)
@@ -1002,7 +1002,8 @@ class FluorObj:
                 else:
                     a, b, angle = typical_size; max_size = max(a, b); min_size = min(a, b)
                     if max_size < 1.5 or min_size < 1.0:
-                        raise ValueError("Expected sizes a, b should be positive, minimal is more than 1px and maximal is more than 1.5px")
+                        raise ValueError("Expected sizes a, b should be positive, minimal is more than 1px and maximal is more than 1.5px"
+                                         + f"Provided sizes: {a, b}")
                     if angle > 2.0*np.pi or angle < -2.0*np.pi:
                         raise ValueError("Expected angle should be in the range of [-2pi, 2pi]")
                     self.typical_sizes = typical_size
@@ -1168,12 +1169,12 @@ class FluorObj:
         if self.profile is not None:
             if image_type == 'uint8' or image_type is np.uint8:
                 if max_pixel_value > UscopeScene.max_pixel_value_uint8 or max_pixel_value < 0:
-                    raise ValueError(f"Provided max pixel value {max_pixel_value} isn't compatible with the provided image type: {image_type}")
+                    raise ValueError(f"Provided max pixel value {max_pixel_value} isn't compatible with a provided image type: {image_type}")
                 self.image_type = image_type; self.casted_profile = np.round(max_pixel_value*self.profile, 0).astype(np.uint8)
                 return self.casted_profile
             elif image_type == 'uint16' or image_type is np.uint16:
                 if max_pixel_value > UscopeScene.max_pixel_value_uint16 or max_pixel_value < 0:
-                    raise ValueError(f"Provided max pixel value {max_pixel_value} isn't compatible with the provided image type: {image_type}")
+                    raise ValueError(f"Provided max pixel value {max_pixel_value} isn't compatible with a provided image type: {image_type}")
                 self.image_type = image_type; self.casted_profile = np.round(max_pixel_value*self.profile, 0).astype(np.uint16)
                 return self.casted_profile
             elif image_type == 'float' or image_type is np.float64:
@@ -1442,6 +1443,7 @@ def force_precompilation():
         __warn_message = "Acceleration isn't possible because 'numba' library not installed in the current environment"
         warnings.warn(__warn_message)
 
+
 # %% Define default export classes and methods used with import * statement (import * from fluoscenepy)
 __all__ = ['UscopeScene', 'FluorObj', 'force_precompilation']
 
@@ -1458,6 +1460,7 @@ if __name__ == "__main__":
     prepare_shifted_docs_images = False; shifts_sample = (0.24, 0.0)  # for making shifted sample images for preparing Readme
     prepare_scene_samples = False  # for preparing illustrative scenes with placed on them objects
     prepare_favicon_img = False; prepare_large_favicon_img = False  # generate picture with dense round objects
+    test_add_noise_ext_img = False  # testing of adding noise to an external image
 
     # Check if skimage is installed and set the flag for using it for saving the raw generated images below
     # Although skimage is not included in the dependencies of the package
@@ -1570,7 +1573,8 @@ if __name__ == "__main__":
         scene8.remove_noise(); scene8.show_scene("Removed noise")
     # Test reworked algorithm for placing large number of circles that should / not lay within the scene, not touching / overlapping
     if test_placing_circles:
-        objs12 = UscopeScene.get_round_objects(mean_size=8.75, size_std=1.4, intensity_range=(2000, 4000), n_objects=21, image_type=np.uint16)
+        objs12 = UscopeScene.get_round_objects(mean_size=8.75, size_std=1.4, intensity_range=(2000, 4000),
+                                               n_objects=21, image_type=np.uint16)
         scene12 = UscopeScene(width=92, height=84, image_type='uint16'); scene14 = UscopeScene(width=92, height=84, image_type='uint16')
         objs12_placed = scene12.set_random_places(objs12, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         scene12.put_objects_on(objs12_placed, save_only_objects_inside=True); scene12.show_scene("Circles within scene")
@@ -1662,3 +1666,11 @@ if __name__ == "__main__":
         custom_path = ""
         if len(custom_path) > 0 and saving_possible:
             io.imsave(Path(custom_path), scene_favicon2.image)
+
+    if test_add_noise_ext_img:
+        scene4noise = UscopeScene(width=169, height=197)
+        objs20 = scene4noise.get_objects_acc(mean_size=(9, 15), size_std=(3, 6), intensity_range=(220, 251), shapes='mixed', n_objects=14,
+                                             verbose_info=True)
+        objs20 = scene4noise.set_random_places(objs20, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
+        scene4noise.put_objects_on(objs20); scene4noise.show_scene(); noisy_img = UscopeScene.noise2image(scene4noise.image)
+        scene4noise.image = noisy_img; scene4noise.show_scene()
