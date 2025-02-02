@@ -136,8 +136,8 @@ def test_other_methods():
 
 def test_radiuses_generation():
     for i in range(250):
-        r = get_radius_gaussian(r=2.0, r_std=1.2, mean_size=2.0, size_std=1.2)
+        r = get_radius_gaussian(r=1.5, r_std=1.0, mean_size=1.5, size_std=1.0)
         assert r >= 0.5, f"Generated r < 0.5: {round(r, 3)}"
-        a, b, angle = get_ellipse_sizes(mean_size=(4.0, 3.0), size_std=(2.0, 1.5))
+        a, b, angle = get_ellipse_sizes(mean_size=(3.0, 2.0), size_std=(2.0, 1.0))
         r_min = min(a, b); r_max = max(a, b)
         assert r_min > 1.0 and r_max > 1.5, f"Sizes for ellipse {a, b} less smallest values"

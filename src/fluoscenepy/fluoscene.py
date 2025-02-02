@@ -254,7 +254,7 @@ class UscopeScene:
             t_ov_1 = time.perf_counter()
         # Checking input values for consistency
         if shapes not in self.shape_types:
-            raise ValueError(f"Please provide the supported shape type for generation from a list: {cls.shape_types}")
+            raise ValueError(f"Please provide the supported shape type for generation from a list: {self.shape_types}")
         if not numba_installed:
             raise ValueError(f"Method can be called if only 'numba' package is installed")
         max_intensity = max(intensity_range); raise_exception = False  # define max provided intensity
@@ -1669,6 +1669,7 @@ if __name__ == "__main__":
 
     if test_add_noise_ext_img:
         scene4noise = UscopeScene(width=169, height=197)
+        print(scene4noise.shape_types)
         objs20 = scene4noise.get_objects_acc(mean_size=(9, 15), size_std=(3, 6), intensity_range=(220, 251), shapes='mixed', n_objects=14,
                                              verbose_info=True)
         objs20 = scene4noise.set_random_places(objs20, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
