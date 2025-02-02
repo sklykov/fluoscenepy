@@ -1,14 +1,18 @@
-# 'fluoscenepy' project
-This project helps to simulate the microscopic images with the basic structures: beads and ellipses, calculated using various concepts. 
-If it sounds too ambitious, please, consider it only as the good intention to have such useful tool ready for various evaluations 
-(e.g. for evaluation of image processing workflows),  but not as the solid and proven approach, that has been published somewhere.
+# 'fluoscenepy' Project
 
-### Ratio for project development
-Even though, there exist number of similar and much more advanced projects, which addresses the task of fluorescence microscopic image
-simulations, and, moreover, the task of bead simulation seems to be trivial, nevertheless, I haven't seen the appropriate library
-for the simulation of the precise bead (circle) projection on the pixels grid. The circle ('ball') with 1 pixel radius, not shifted
-from the center of pixel (exact coordinates like (1, 1) for the circle center) can be projected on the pixel grid 
-in the following ways:
+The 'fluoscenepy' project is designed to simulate microscopic images featuring basic structures such as beads and ellipses, 
+calculated using various computational approaches.  
+While this may sound ambitious, please consider it as an earnest attempt to provide a useful tool for diverse applications, such 
+as evaluating image processing workflows, rather than a fully established or peer-reviewed solution. It is a work in progress, 
+intended to support experimental analyses rather than to represent a finalized, validated methodology.
+
+### Rationale for Project Development
+Although there are numerous similar and more advanced projects that address the task of simulating fluorescence microscopy 
+images, and bead simulation may seem trivial, I have not encountered an appropriate library capable of accurately simulating 
+the precise projection of a bead (or circle) onto a pixel grid.   
+Specifically, projecting a circle (or "bead") with a radius of 1 pixel, perfectly centered on a pixel (e.g., at coordinates (1, 1)),
+presents some challenges. This seemingly simple task can result in various projection outcomes on the pixel grid, depending on the 
+approach used:
 
 1) "Normal" Circle. The 4 pixels (on 90 degree directions) on the borders are included because 
 the distance between them and the center of the circle is precisely 1 pixel and equal to the radius.   
@@ -150,11 +154,13 @@ placed_objs = uscene.set_random_places(fl_objs, overlapping=False, touching=Fals
                                        only_within_scene=True, verbose_info=True)
 uscene.put_objects_on(placed_objs, save_only_objects_inside=True); uscene.show_scene()
 ````
-Please note that the performance is limited still by two factors:   
-1) It's required by the function call to calculate precise distribution of object profile intensity over the pixel grid.   
-Especially in the case of object with elliptic shape, it can take up to several dozens of seconds for a single object 
-generation.
-2) For the placing algorithms, if the flags 'overlapping' and 'touching' are False, then the algorithm checks during
-random placing of objects on the scene for event of two objects overlapping and touching. So, it is implemented as 
-the pixelwise checks that in the case of relatively big objects in the sizes, may take long time (up to minutes for 
-a single object placement).
+Please note that performance is still limited by the following factors:
+1) Object Profile Intensity Calculation:   
+The function requires precise calculation of the object's profile intensity distribution across the pixel grid. 
+This process can be particularly time-consuming for objects with an elliptical shape, taking up to several dozen seconds 
+for a single object generation.
+2) Object Placement Algorithms:
+When both the 'overlapping' and 'touching' flags are set to False, the algorithm performs pixel-wise checks 
+to ensure that no two objects overlap or touch during random placement. For relatively large objects, this 
+verification can significantly increase processing time, potentially taking several minutes for the placement 
+of a single object.
