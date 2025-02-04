@@ -7,15 +7,16 @@ as evaluating image processing workflows, rather than a fully established or pee
 intended to support experimental analyses rather than to represent a finalized, validated methodology.
 
 ### Rationale for Project Development
-Although there are numerous similar and more advanced projects that address the task of simulating fluorescence microscopy 
-images, and bead simulation may seem trivial, I have not encountered an appropriate library capable of accurately simulating 
-the precise projection of a bead (or circle) onto a pixel grid.   
+Although there are numerous advanced projects (for instance, [Synthetic objects generation](https://github.com/applied-systems-biology/DeconvTest/blob/3b83758a8956e93879734292e27ea1259c9e54fe/DeconvTest/modules/input_objects.py) 
+of the [DeconvTest](https://github.com/applied-systems-biology/DeconvTest) project) that address the task of simulating objects commonly found 
+in fluorescence microscopy images, and bead simulation may seem trivial, I have not yet found an appropriate library capable of accurately 
+simulating the precise projection of a bead (or circle) onto a pixel grid.   
 Specifically, projecting a circle (or "bead") with a radius of 1 pixel, perfectly centered on a pixel (e.g., at coordinates (1, 1)),
 presents some challenges. This seemingly simple task can result in various projection outcomes on the pixel grid, depending on the 
 approach used:
 
-1) "Normal" Circle. The 4 pixels (on 90 degree directions) on the borders are included because 
-the distance between them and the center of the circle is precisely 1 pixel and equal to the radius.   
+1) "Normal" Circle: the four border pixels positioned at 90° intervals (along the cardinal directions) are included because their distance from 
+the circle's center is exactly 1 pixel, matching the circle's radius.  
    
 ![Normal Circle](./src/fluoscenepy/readme_images/Circle_rad_1px.png "Normal Circle 1px R")    
 
@@ -26,26 +27,27 @@ flobj = FluorObj(typical_size=2.0, border_type="computed", shape_method="circle"
 flobj.get_shape(); flobj.plot_shape()
 ```
    
-2) "Oversampled" Circle. All pixels within the circle border are included into the projection with the maximum 
-(though normalized) intensity.
+2) "Oversampled" Circle: all pixels within the circle's boundary are included in the projection, each assigned the maximum 
+(but normalized) intensity.
 
 ![Oversampled Circle](./src/fluoscenepy/readme_images/Oversampled_Circle_rad_1px.png "Oversampled Circle 1px R")     
 
 The code snippet is the same as for the "normal" circle above, only the parameter should be set as: 
 ***shape_method="oversampled circle"***.
 
-3) "Undersampled" Circle. Only pixels, that lay completely within the border, are included into the projection.
+3) "Undersampled" Circle: only pixels that lie entirely within the circle's boundary are included in the projection.
 
 ![Undersampled Circle](./src/fluoscenepy/readme_images/Undersampled_Circle_rad_1px.png "Undersampled Circle 1px R")  
 
 The code snippet is the same as for the "normal" circle above, only the parameter should be set as: 
 ***shape_method="undersampled circle"***.   
 
-Intuitively, the problem can be solved either by calculation the area of intersection of each pixel with the circle
-border, or by using some bell-shaped analytic function for the shape description 
+Intuitively, the problem can be addressed either by calculating the area of intersection between each pixel and the circle's 
+boundary or by using a bell-shaped analytical function to describe the object's shape 
 ([more information](https://en.wikipedia.org/wiki/Bell-shaped_function) on these functions).   
+
 To illustrate this, the following shapes could be plotted: 
-1) The shape with calculated areas of the intersection of each pixel with the circular border ("Precise" Circle):      
+1) A shape based on the calculated area of intersection between each pixel and the circular boundary, referred to as the "Precise" Circle:      
 
 ![Precise Circle 2](./src/fluoscenepy/readme_images/Precise_bordered_circle_rad_1px.png "Precise Circle 1px R")   
 
@@ -75,9 +77,9 @@ flobj = FluorObj(typical_size=4.8, border_type="co", shape_method="bump3")
 flobj.get_shape(); flobj.plot_shape()
 ```
 
-The problem of precise shape projection of the circle on the pixel grid becomes even more significant 
-if its center is shifted from the origin of the pixel. To illustrate this, below are a few examples of the shifted by (0.24, 0.0)
-circles.   
+The challenge of accurately projecting a circle onto a pixel grid becomes even more significant when the circle's center is shifted from the center of a pixel. 
+To illustrate this, here are several examples of circles shifted by (0.24, 0.0):  
+
 Shifted "Normal" Circle:    
 
 ![Normal Circle](./src/fluoscenepy/readme_images/Circle_rad_1px_shift(0.24,0).png "Shifted Normal Circle 1px R")
