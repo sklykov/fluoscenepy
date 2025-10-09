@@ -7,13 +7,14 @@ Computational utility functions for 'fluoscenepy'.
 """
 # %% Global imports
 import random
-from typing import Union
+from numbers import Real
+from typing import Union, Tuple
 import numpy as np
 import time
 
 
 # %% Function defs.
-def get_random_shape_props(mean_size: Union[float, int, tuple], size_std: Union[float, int, tuple]) -> tuple:
+def get_random_shape_props(mean_size: Union[Real, tuple], size_std: Union[Real, tuple]) -> Tuple[Real, Real, Real]:
     """
     Select object properties from the provided parameters.
 
@@ -21,9 +22,9 @@ def get_random_shape_props(mean_size: Union[float, int, tuple], size_std: Union[
 
     Parameters
     ----------
-    mean_size : Union[float, int, tuple]
+    mean_size : Union[Real, tuple]
         Property to select from.
-    size_std : Union[float, int, tuple]
+    size_std : Union[Real, tuple]
         Property to select from.
 
     Returns
@@ -42,7 +43,7 @@ def get_random_shape_props(mean_size: Union[float, int, tuple], size_std: Union[
         r_std = random.choice(size_std)
     else:
         r_std = size_std
-    return (shape_type, r, r_std)
+    return shape_type, r, r_std
 
 
 def get_random_central_shifts() -> tuple:
@@ -63,10 +64,10 @@ def get_random_central_shifts() -> tuple:
     if j_shift >= 1.0:
         j_shift -= round(random.random(), 3)*0.25
     sign_i = random.choice([-1.0, 1.0]); sign_j = random.choice([-1.0, 1.0]); i_shift *= sign_i; j_shift *= sign_j  # random signs
-    return (i_shift, j_shift)
+    return i_shift, j_shift
 
 
-def get_random_max_intensity(intensity_range: tuple) -> Union[float, int]:
+def get_random_max_intensity(intensity_range: tuple) -> Union[int, float]:
     """
     Select the intensity from the provided min, max range.
 
@@ -77,33 +78,34 @@ def get_random_max_intensity(intensity_range: tuple) -> Union[float, int]:
 
     Returns
     -------
-    Union(float, int)
+    Union[int, float]
         Returning the maximum intensity of the profile.
 
     """
     min_intensity, max_intensity = intensity_range  # assuming that only 2 values provided, if not - will throw an Exception
+    fl_intensity = 0   # default parameter
     # Random selection of max intensity for the profile casting
     if isinstance(min_intensity, int) and isinstance(max_intensity, int):
-        fl_intensity = random.randrange(min_intensity, max_intensity, 1)
+        fl_intensity = random.randrange(min_intensity, max_intensity)  # 1 - default step
     elif isinstance(min_intensity, float) and isinstance(max_intensity, float):
         fl_intensity = random.uniform(a=min_intensity, b=max_intensity)
     return fl_intensity
 
 
-def get_radius_gaussian(r: Union[float, int, None], r_std: Union[float, int, None], mean_size: Union[float, int],
-                        size_std: Union[float, int]) -> float:
+def get_radius_gaussian(r: Union[Real, None], r_std: Union[Real, None], mean_size: Real,
+                        size_std: Real) -> float:
     """
     Get the random Gaussian-distributed radius.
 
     Parameters
     ----------
-    r : Union[float, int]
+    r : Union[Real, None]
         Selected radius.
-    r_std : Union[float, int]
+    r_std : Union[Real, None]
         Selected radius STD.
-    mean_size : Union[float, int]
+    mean_size : Real
         Directly provided parameter by the method call if r is None.
-    size_std : Union[float, int]
+    size_std : Real
         Directly provided parameter by the method call if r_std is None.
 
     Raises
@@ -118,11 +120,11 @@ def get_radius_gaussian(r: Union[float, int, None], r_std: Union[float, int, Non
 
     """
     if r is not None and r_std is not None:
-        radius = random.gauss(mu=r, sigma=r_std)
+        radius = random.gauss(mu=float(r), sigma=float(r_std))
     else:
         if isinstance(mean_size, tuple) or isinstance(size_std, tuple):
             raise ValueError("Provided tuple with sizes for round shaped object, there expected only single number size")
-        radius = random.gauss(mu=mean_size, sigma=size_std)
+        radius = random.gauss(mu=float(mean_size), sigma=float(size_std))
     # Checking generated radius for consistency
     radius = abs(radius)  # Gaussian distribution -> negative values also generated
     if radius < 0.5:
@@ -144,7 +146,7 @@ def get_ellipse_sizes(mean_size: tuple, size_std: tuple) -> tuple:
     Returns
     -------
     tuple
-        (a axis, b axis, angle) - parameters for ellipse generation.
+        ("a" 1st axis, "b" 2nd axis, angle) - parameters for ellipse generation.
 
     """
     a, b = mean_size; a_std, b_std = size_std  # unpacking tuples assuming 2 of sizes packed there
@@ -162,7 +164,7 @@ def get_ellipse_sizes(mean_size: tuple, size_std: tuple) -> tuple:
             a_r += random.uniform(3.0-a_r, 3.0)
         else:
             b_r += random.uniform(3.0-b_r, 3.0)
-    return (a_r, b_r, angle)
+    return a_r, b_r, angle
 
 
 def print_out_elapsed_t(initial_timing: float, operation: str = "Operation"):
@@ -189,7 +191,6 @@ def print_out_elapsed_t(initial_timing: float, operation: str = "Operation"):
         print(f"{operation} took: {elapsed_time_ov} milliseconds", flush=True)
 
 
-# @jit(nopython=False)  # this acceleration by numba library doesn't work, function used for shortening code from the main module
 def delete_coordinates_from_list(coordinates_list: list, input_list: list) -> list:
     """
     Delete coordinates from the copy of an input list.
@@ -197,9 +198,9 @@ def delete_coordinates_from_list(coordinates_list: list, input_list: list) -> li
     Parameters
     ----------
     coordinates_list : list
-        List with coordinates to be deleted.
+        Coordinates to be deleted from an input list.
     input_list: list
-        List for looking for and deleting the provided coordinates.
+        Target for deletion.
 
     Returns
     -------
@@ -207,7 +208,7 @@ def delete_coordinates_from_list(coordinates_list: list, input_list: list) -> li
         Copy of an input list with the deleted coordinates.
 
     """
-    cleaned_list = input_list[:]  # copy the input list
+    cleaned_list = input_list.copy()
     for del_coord in coordinates_list:
         try:
             cleaned_list.remove(del_coord)
