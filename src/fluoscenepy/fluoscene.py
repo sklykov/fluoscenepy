@@ -65,16 +65,16 @@ class UscopeScene:
     """
 
     # Class parameters
-    width: int = 4; height: int = 4; __warn_message: str = ""; max_pixel_value = 255; img_type = np.uint8
+    width: int = 4; height: int = 4; __warn_message: str = ""; max_pixel_value: Union[int, float] = 255; img_type = np.uint8
     acceptable_img_types: list = ['uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64]
-    max_pixel_value_uint8: int = 255; max_pixel_value_uint16: int = 65535; shape: tuple = (height, width)
-    fluo_objects: list = []; shape_types = ['mixed', 'round', 'r', 'ellipse', 'el']
+    shape: tuple = (height, width); fluo_objects: list = []; shape_types = ['mixed', 'round', 'r', 'ellipse', 'el']
     image: Optional[np.ndarray] = None  # now, image can be None as well as np.ndarray after generation
     __image_cleared: bool = True  # for tracking that the scene was cleared (zeroed)
     __available_coordinates: list = []; __binary_placement_mask: Optional[np.ndarray] = None
-    denoised_image: Optional[np.ndarray] = None
+    denoised_image: Optional[np.ndarray] = None  # keep copy of an initial, free from noise image
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
     __round_fl_obj = None; __ellipse_fl_obj = None  # placeholders for classes used for precompilation of methods by numba
+    __cast_options: list = ["neg.norm.", "int8", "int16"]
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
                  numba_precompile: bool = True):
@@ -114,9 +114,9 @@ class UscopeScene:
             raise ValueError(f"Provided image type '{image_type}' not in the acceptable list of types: " + str(self.acceptable_img_types))
         else:
             if image_type == 'uint8' or image_type == np.uint8:
-                self.max_pixel_value = self.max_pixel_value_uint8; self.img_type = np.uint8
+                self.max_pixel_value = np.iinfo(np.uint8).max; self.img_type = np.uint8
             elif image_type == 'uint16' or image_type == np.uint16:
-                self.max_pixel_value = self.max_pixel_value_uint16; self.img_type = np.uint16
+                self.max_pixel_value = np.iinfo(np.uint16).max; self.img_type = np.uint16
             elif image_type == 'float' or image_type == np.float64:
                 self.max_pixel_value = 1.0; self.img_type = np.float64
         # Initialize zero scene
@@ -178,10 +178,10 @@ class UscopeScene:
             raise ValueError(f"Please provide the supported shape type for generation from a list: {cls.shape_types}")
         max_intensity = max(intensity_range); raise_exception = False  # define max provided intensity
         if image_type == 'uint8' or image_type == np.uint8:
-            if max_intensity > cls.max_pixel_value_uint8:
+            if max_intensity > np.iinfo(np.uint8).max:
                 raise_exception = True
         elif image_type == 'uint16' or image_type == np.uint16:
-            if max_intensity > cls.max_pixel_value_uint16:
+            if max_intensity > np.iinfo(np.uint16).max:
                 raise_exception = True
         if raise_exception:
             raise ValueError(f"Max intensity from the range {intensity_range} is incompatible with the provided image type {image_type}")
@@ -272,10 +272,10 @@ class UscopeScene:
             raise ValueError("Method can be called if only 'numba' package is installed")
         max_intensity = max(intensity_range); raise_exception = False  # define max provided intensity
         if image_type == 'uint8' or image_type == np.uint8:
-            if max_intensity > self.max_pixel_value_uint8:
+            if max_intensity > np.iinfo(np.uint8).max:
                 raise_exception = True
         elif image_type == 'uint16' or image_type == np.uint16:
-            if max_intensity > self.max_pixel_value_uint16:
+            if max_intensity > np.iinfo(np.uint16).max:
                 raise_exception = True
         if raise_exception:
             raise ValueError(f"Max intensity from the range {intensity_range} is incompatible with the provided image type {image_type}")
@@ -954,6 +954,60 @@ class UscopeScene:
             noisy_image = raw_pixels.astype(source_image.dtype)
         return noisy_image
 
+    @classmethod
+    def cast_image(cls, img: np.ndarray, option: str = "neg.norm.") -> Union[np.ndarray, None]:
+        f"""
+        Depending on selected option, output normalized to [-1.0, 1.0] range or rescaled to np.int8 or np.int16 ranges.
+        
+        Parameters
+        ----------
+        img : np.ndarray
+            Input image as numpy array with real dtype.
+        option : str
+            One of the options: {cls.__cast_options}, where:\n
+            'neg.norm.' - output np.float64 image normalized to [-1.0, 1.0]; \n
+            '
+
+        Returns
+        -------
+
+        """
+        target = img.copy()  # not operating on an input image as a reference
+        option = option.replace(" ", "")  # prevent mistakes in typing, like "neg. norm."
+        if option in cls.__cast_options:
+            target = target.astype(np.float64)  # universal cast for array manipulations
+            if option == cls.__cast_options[0]:
+                if np.min(target) < 0.0:
+                    # Following logic applied: [-2.0, 0.0, 0.8] -> [-1.0, 0.0, 0.4] - not scaled to [-1.0, 1.0] but normalized to [-1 1]
+                    if np.abs(np.min(target)) > np.abs(np.max(target)):
+                        target /= np.abs(np.min(target)); target = np.round(target, 9)
+                    else:
+                        target /= np.abs(np.max(target)); target = np.round(target, 9)
+                    return target
+                else:
+                    target -= 0.5*np.max(target)  # shift image from [0.0 ... max] to [-0.5 max, 0.5 max]
+                    target /= np.max(target); target = np.round(target, 9)  # should normalize target to [-1.0, 1.0]
+                    # Check that pixel values are within the range
+                    if np.max(target) > 1.0:
+                        target /= np.max(target); target = np.round(target, 9)
+                    if np.min(target) < -1.0:
+                        target /= np.abs(np.min(target)); target = np.round(target, 9)
+                    return target
+            elif option == cls.__cast_options[1]:
+                norm_neg_target = UscopeScene.cast_image(img)  # get normalized to [-1.0, 1.0] image by default
+                norm_neg_target *= np.iinfo(np.int8).max  # just use uniform transform to [-127.0, 127.0]
+                norm_neg_target = np.round(norm_neg_target, 0)  # prepare to conversion to integer values
+                return norm_neg_target.astype(np.int8)
+            elif option == cls.__cast_options[2]:
+                norm_neg_target = UscopeScene.cast_image(img)  # get normalized to [-1.0, 1.0] image by default
+                norm_neg_target *= np.iinfo(np.int16).max  # just use uniform transform to [-32767.0, 32767.0]
+                norm_neg_target = np.round(norm_neg_target, 0)  # prepare to conversion to integer values
+                return norm_neg_target.astype(np.int16)
+            else:
+                return None
+        else:
+            raise ValueError(f"\nProvided option '{option}' not found among the supported options: {cls.__cast_options}")
+
 
 # %% Object class definition
 class FluorObj:
@@ -966,7 +1020,7 @@ class FluorObj:
 
     # Class parameters
     shape_type: str = ""; border_type: str = ""; shape_method: str = ""; explicit_shape_name: str = ""
-    profile: Optional[np.ndarray] = None
+    profile: Optional[np.ndarray] = None  # holds an image (profile) of the object
     __acceptable_shape_types: list = ['round', 'r', 'ellipse', 'el', 'curved', 'c']  # shape types of the object
     __acceptable_border_types: list = ['precise', 'pr', 'computed', 'co']; radius: float = 0.0; a: float = 0.0; b: float = 0.0
     typical_sizes: tuple = ()  # for storing descriptive parameters for curve describing the shape of the object
@@ -976,7 +1030,7 @@ class FluorObj:
                                         'ovcir', 'undersampled circle', 'uncir', 'circle', 'c']
     valuable_round_shapes: list = ['gaussian', 'derivative of logistic func.', 'bump cube', 'bump ^8', 'smooth circle']
     image_type = None; center_shifts: tuple = (0.0, 0.0)   # subpixel shift of the center of the object
-    casted_profile: Optional[np.ndarray] = None  # cast profile to a normalized one for a provided image  in a method
+    casted_profile: Optional[np.ndarray] = None  # cast profile to a normalized one for a provided image in a method
     __profile_cropped: bool = False  # flag for setting if the profile was cropped (zero pixel rows / columns removed)
     external_upper_coordinates: tuple = (0, 0)  # external image coordinates of the upper left pixel
     __external_image_sizes: tuple = (0, 0)   # sizes of an external image coordinates of the upper left pixel
@@ -1209,12 +1263,12 @@ class FluorObj:
                              + str(UscopeScene.acceptable_img_types))
         if self.profile is not None:
             if image_type == 'uint8' or image_type is np.uint8:
-                if max_pixel_value > UscopeScene.max_pixel_value_uint8 or max_pixel_value < 0:
+                if max_pixel_value > np.iinfo(np.uint8).max or max_pixel_value < 0:
                     raise ValueError(f"Provided max pixel value {max_pixel_value} isn't compatible with a provided image type: {image_type}")
                 self.image_type = image_type; self.casted_profile = np.round(max_pixel_value * self.profile, 0).astype(np.uint8)
                 return self.casted_profile
             elif image_type == 'uint16' or image_type is np.uint16:
-                if max_pixel_value > UscopeScene.max_pixel_value_uint16 or max_pixel_value < 0:
+                if max_pixel_value > np.iinfo(np.uint16).max or max_pixel_value < 0:
                     raise ValueError(f"Provided max pixel value {max_pixel_value} isn't compatible with a provided image type: {image_type}")
                 self.image_type = image_type; self.casted_profile = np.round(max_pixel_value*self.profile, 0).astype(np.uint16)
                 return self.casted_profile
@@ -1495,7 +1549,7 @@ __all__ = ['UscopeScene', 'FluorObj', 'force_precompilation']
 if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_precise_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
-    test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False
+    test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False; test_cast = False
     test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = False; test_various_noises = False
     shifts = (-0.2, 0.44); test_cropping_shifted_circles = False; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
     test_compiling_acceleration = False  # testing the acceleration through compilation using numba
@@ -1506,8 +1560,7 @@ if __name__ == "__main__":
     prepare_favicon_img = False; prepare_large_favicon_img = False  # generate picture with dense round objects
     test_add_noise_ext_img = False  # testing of adding noise to an external image
 
-    # Check if skimage is installed and set the flag for using it for saving the raw generated images below
-    # Although skimage is not included in the dependencies of the package
+    # Check if skimage (not included in the project's dependencies) is installed and set the flag for using it for saving generated images
     saving_possible = True
     try:
         from skimage import io
@@ -1716,4 +1769,12 @@ if __name__ == "__main__":
         objs20 = scene4noise.set_random_places(objs20, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         scene4noise.put_objects_on(objs20); scene4noise.show_scene(); noisy_img = UscopeScene.noise2image(scene4noise.image)
         scene4noise.image = noisy_img; scene4noise.show_scene()
+
+    if test_cast:
+        scene = UscopeScene(width=267, height=232, image_type=np.uint16)
+        objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(0, 4094), n_objects=14, image_type=scene.img_type)
+        objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(mean_noise=200); scene.show_scene()
+        img_neg_norm = UscopeScene.cast_image(scene.image); img_int8 = UscopeScene.cast_image(scene.image, option='int8')
+        img_int16 = UscopeScene.cast_image(scene.image, option='int16')
+
     plt.show()
