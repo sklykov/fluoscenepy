@@ -6,9 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.4] - 2025-..-..
 ### Added
-- Method for casting images to float [-1.0, 1.0], equal int8 range [-127, 127] and equal int16 range 
-[-32767, 32767].
-- Automatic tests through GitHub Actions.
+- Method for casting images from commonly supported (uint8, uint16 and float) to float with range [-1.0, 1.0], equal int8 range
+[-127, 127] and equal int16 range [-32767, 32767]. It's implemented as ***@classmethod cast_image(...)***.
+- Automatic tests through GitHub Actions for main branch commits / merges.
 
 ## [0.0.3] - 2025-02-02
 ### Fixed

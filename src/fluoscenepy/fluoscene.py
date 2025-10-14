@@ -2,8 +2,9 @@
 """
 Main script for the 'fluoscenepy' package.
 
-@author: Sergei Klykov
-@licence: MIT, @year: 2024
+@author: Sergei Klykov, '@sklykov' on GitHub
+
+@licence: MIT, @year: 2025
 
 """
 # %% Global imports
@@ -956,21 +957,23 @@ class UscopeScene:
 
     @classmethod
     def cast_image(cls, img: np.ndarray, option: str = "neg.norm.") -> Union[np.ndarray, None]:
-        f"""
+        """
         Depending on selected option, output normalized to [-1.0, 1.0] range or rescaled to np.int8 or np.int16 ranges.
-        
+
         Parameters
         ----------
         img : np.ndarray
             Input image as numpy array with real dtype.
         option : str
-            One of the options: {cls.__cast_options}, where:\n
+            One of the options: 'neg.norm.', 'int8', 'int16', where:\n
             'neg.norm.' - output np.float64 image normalized to [-1.0, 1.0]; \n
-            '
+            'int8' - output np.int8 image rescaled to [-127, 127]; \n
+            'int16' output np.int16 image rescaled to [-32767, 32767]
 
         Returns
         -------
-
+        np.ndarray or None
+            Converted image or None if some exception occurs.
         """
         target = img.copy()  # not operating on an input image as a reference
         option = option.replace(" ", "")  # prevent mistakes in typing, like "neg. norm."
