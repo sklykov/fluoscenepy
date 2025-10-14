@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).    
 
+## [0.0.4] - 2025-..-..
+### Added
+- Method for casting images from commonly supported (uint8, uint16 and float) to float with range [-1.0, 1.0], equal int8 range
+[-127, 127] and equal int16 range [-32767, 32767]. It's implemented as ***@classmethod cast_image(...)***.
+- Automatic tests through GitHub Actions for main branch commits / merges.
+
 ## [0.0.3] - 2025-02-02
 ### Fixed
 - Issue with generation of subpixel particles, when mean size ~ 2 or fewer pixels and STD is ~ 1 pixel.

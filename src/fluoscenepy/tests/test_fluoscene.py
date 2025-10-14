@@ -20,22 +20,22 @@ if __name__ != "__main__":
 # %% Tests
 def test_scene_initialization():
     try:
-        scene = UscopeScene(width=1, height=6)
-        assert False, "Wrong initialization (UscopeScene(width=1, height=2)) not thrown the error"
+        UscopeScene(width=1, height=6)
+        assert False, "Wrong initialization (UscopeScene(width=1, height=6)) not thrown the error"
     except ValueError:
         pass
     try:
-        scene = UscopeScene(width=12, height=3)
+        UscopeScene(width=12, height=3)
         assert False, "Wrong initialization (UscopeScene(width=12, height=3)) not thrown the error"
     except ValueError:
         pass
     try:
-        scene = UscopeScene(width=4.5, height=6)
+        UscopeScene(width=4.5, height=6)
         assert False, "Wrong initialization (UscopeScene(width=4.5, height=6)) not thrown the error"
     except TypeError:
         pass
     try:
-        scene = UscopeScene(width=5, height=4, image_type='none')
+        UscopeScene(width=5, height=4, image_type='none')
         assert False, "Wrong initialization (UscopeScene(width=2, height=2, img_type='none')) not thrown the error"
     except ValueError:
         pass
@@ -48,22 +48,22 @@ def test_scene_initialization():
 def test_fluorobj_initialization():
     # False parameters provided for initialization - tests should fail
     try:
-        flobj = FluorObj(typical_size=-0.4)
+        FluorObj(typical_size=-0.4)
         assert False, "Wrong initialization (FluorObj(typical_size=-0.4)) not thrown the error"
     except ValueError:
         pass
     try:
-        flobj = FluorObj(typical_size=5, center_shifts=1.0)
+        FluorObj(typical_size=5, center_shifts=1.0)
         assert False, "Wrong initialization (FluorObj(typical_size=5, center_shifts=1.0) not thrown the error"
     except TypeError:
         pass
     try:
-        flobj = FluorObj(typical_size=(4.0, 4.0, 0.25), center_shifts=(0.0, 0.1))
+        FluorObj(typical_size=(4.0, 4.0, 0.25), center_shifts=(0.0, 0.1))
         assert False, "Wrong initialization FluorObj(typical_size=(4.0, 4.0, 0.25), center_shifts=(0.0, 0.1) not thrown the error"
     except TypeError:
         pass
     try:
-        flobj = FluorObj(typical_size=(1.49, 1.0, 2.18), center_shifts=(0.0, 0.1), shape_type='el')
+        FluorObj(typical_size=(1.49, 1.0, 2.18), center_shifts=(0.0, 0.1), shape_type='el')
         assert False, ("Wrong initialization FluorObj(typical_size=(1.49, 1.0, 2.18), center_shifts=(0.0, 0.1), shape_type='el') "
                        + " - not thrown the error for typical sizes out of range")
     except ValueError:
@@ -73,7 +73,7 @@ def test_fluorobj_initialization():
     assert flobj.profile.shape[0] > 4 and flobj.profile.shape[1] > 4, f"Profile sizes out of the expected range (5, 5): {flobj.profile.shape}"
     flobj = FluorObj(typical_size=(4.2, 5.1, 0.25*np.pi), shape_type='el'); flobj.get_shape(accelerated=False)
     flobj.get_casted_shape(max_pixel_value=1921, image_type='uint16'); flobj.crop_shape(); flobj.crop_shape()
-    assert flobj.profile.shape == flobj.casted_profile.shape, "Profile and casted profile shapes aren't equa or double cropping causes errors"
+    assert flobj.profile.shape == flobj.casted_profile.shape, "Profile and casted profile shapes aren't equal or double cropping causes errors"
     flobj = FluorObj(typical_size=2.0); flobj.get_shape(accelerated=True)
     assert flobj.profile.shape[1] == 3 and flobj.profile.shape[0] == 3, ("Profile sizes out of the expected range (3, 3): "
                                                                          + f"{flobj.profile.shape}")
@@ -96,8 +96,9 @@ def test_objects_generation():
     scene2.put_objects_on(placed_objs, save_only_objects_inside=True)
     assert len(placed_objs) <= len(precise_objs), "Number of placed objects more than number of generated 'precise' objects"
     # Testing for found bug in ver. 0.0.2 - getting wrong sizes for samples
-    robjs2 = UscopeScene.get_round_objects(mean_size=12, size_std=8, intensity_range=(230, 254), n_objects=80)
-    assert len(robjs2) == 80, "Round object generation not creating 100 objects as expected"
+    n_tested_objs = 79
+    robjs2 = UscopeScene.get_round_objects(mean_size=12, size_std=8, intensity_range=(230, 254), n_objects=n_tested_objs)
+    assert len(robjs2) == n_tested_objs, f"Round object generation not creating {n_tested_objs} objects as expected"
     # Acceleration generation testing
     accelerated_method_called = False
     try:
@@ -118,7 +119,7 @@ def test_objects_generation():
 
 
 def test_other_methods():
-    scene4 = UscopeScene(width=63, height=57)
+    scene4 = UscopeScene(width=63, height=57); objs4 = None
     try:
         import numba
         if numba is not None:
@@ -127,11 +128,14 @@ def test_other_methods():
     except (ModuleNotFoundError, ImportError):
         objs4 = scene4.get_random_objects(mean_size=(3.75, 3.0), size_std=(0.25, 0.19), intensity_range=(195, 235),
                                           n_objects=4, shapes='mixed')
-    placed_objs = scene4.set_random_places(objs4, overlapping=False, touching=False, only_within_scene=True)
-    scene4.put_objects_on(placed_objs, save_only_objects_inside=True)
-    noisy_img = UscopeScene.noise2image(scene4.image)
-    assert noisy_img.shape == scene4.image.shape, "Shapes of input and output images for noise2image() method not equal"
-    assert np.max(noisy_img) != np.max(scene4.image), "Max pixel values for noisy and source image should be different"
+    if objs4 is not None:
+        placed_objs = scene4.set_random_places(objs4, overlapping=False, touching=False, only_within_scene=True)
+        scene4.put_objects_on(placed_objs, save_only_objects_inside=True)
+        noisy_img = UscopeScene.noise2image(scene4.image)
+        assert noisy_img.shape == scene4.image.shape, "Shapes of input and output images for noise2image() method not equal"
+        assert np.max(noisy_img) != np.max(scene4.image), "Max pixel values for noisy and source image should be different"
+    else:
+        assert False, "Something wrong with 'get_random_objects' method (check 'test_other_methods' function)"
 
 
 def test_radiuses_generation():
@@ -141,3 +145,16 @@ def test_radiuses_generation():
         a, b, angle = get_ellipse_sizes(mean_size=(3.0, 2.0), size_std=(2.0, 1.0))
         r_min = min(a, b); r_max = max(a, b)
         assert r_min > 1.0 and r_max > 1.5, f"Sizes for ellipse {a, b} less smallest values"
+
+
+def test_cast_images():
+    scene = UscopeScene(width=267, height=232, image_type=np.uint16)
+    objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(0, 4094), n_objects=14, image_type=scene.img_type)
+    objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(mean_noise=200); scene.show_scene()
+    img_neg_norm = UscopeScene.cast_image(scene.image)
+    assert np.min(img_neg_norm) == -1.0 and np.max(img_neg_norm) == 1.0, "Image casting ('cast_image') to range [-1.0, 1.0] has a problem"
+    img_int8 = UscopeScene.cast_image(scene.image, option='int8'); int8min = np.iinfo(np.int8).min; int8max = np.iinfo(np.int8).max
+    assert np.min(img_int8) >= int8min and np.max(img_int8) == int8max, "Image casting ('cast_image') to int8 range [-127, 127] has a problem"
+    img_int16 = UscopeScene.cast_image(scene.image, option='int16'); int16max = np.iinfo(np.int16).max; int16min = np.iinfo(np.int16).min
+    assert np.min(img_int16) >= int16min and np.max(img_int16) == int16max, (f"Image casting ('cast_image') to int16 range [-{int16max}, "
+                                                                             + f"{int16max}] has a problem")
