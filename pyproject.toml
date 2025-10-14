@@ -8,12 +8,10 @@ authors = [
 ]
 description = "Simulation of a microscopic image with round (beads) and elongated fluorescent objects"
 readme = "README.md"
-# license = {file = "LICENSE"}  # includes the whole text in METADATA, maybe not so convienient
-license = {text = "MIT"}  # short descriptive name of the used license
+# license = {file = "LICENSE"}  # includes the whole text in METADATA, maybe not so convenient
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 dependencies = [
@@ -23,7 +21,7 @@ dependencies = [
 keywords = ["fluorescent microscopic image simulation"]
 
 [project.urls]  # METADATA in wheel file will represent the data below by using pip show zernpy -v
-# The links below are mapped / parced by the PyPi website
+# The links below are mapped / parsed by the PyPi website
 "Homepage" = "https://sklykov.github.io/fluoscenepy/"
 "Repository" = "https://github.com/sklykov/fluoscenepy/"
 "Bug Tracker" = "https://github.com/sklykov/fluoscenepy/issues/"
