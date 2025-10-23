@@ -20,7 +20,10 @@ from matplotlib.patches import Circle, Ellipse
 
 # For compatibility between running configurations in Spyder and PyCharm IDEs
 import matplotlib
-matplotlib.use('Qt5Agg')
+try:
+    matplotlib.use('Qt5Agg')
+except ImportError:  # will be thrown in the environment doesn't contain Qt-like library
+    pass
 
 # Flag for using numba for compilation of computation methods
 numba_installed = False
