@@ -30,7 +30,7 @@ def test_initialization():
 
         # Basic package usage
         fl_obj = FluorObj(typical_size=2.0, center_shifts=(-0.21, 0.32)); fl_obj.get_shape(accelerated=True)
-        scene = UscopeScene(width=14, height=12); obj_pl = scene.set_random_places([fl_obj])
+        scene = UscopeScene(width=14, height=12); obj_pl = scene.set_random_places(tuple([fl_obj]))
         scene.put_objects_on(obj_pl)
 
     except (ImportError, ModuleNotFoundError):

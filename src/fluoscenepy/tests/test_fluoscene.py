@@ -150,7 +150,7 @@ def test_radiuses_generation():
 def test_cast_images():
     scene = UscopeScene(width=267, height=232, image_type=np.uint16)
     objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(0, 4094), n_objects=14, image_type=scene.img_type)
-    objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(mean_noise=200); scene.show_scene()
+    objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(mean_g=200); scene.show_scene()
     img_neg_norm = UscopeScene.cast_image(scene.image)
     assert np.min(img_neg_norm) == -1.0 and np.max(img_neg_norm) == 1.0, "Image casting ('cast_image') to range [-1.0, 1.0] has a problem"
     img_int8 = UscopeScene.cast_image(scene.image, option='int8'); int8min = np.iinfo(np.int8).min; int8max = np.iinfo(np.int8).max

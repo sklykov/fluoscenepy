@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).    
 
+## [0.0.5] - 2025-10-..
+Checked for consistency with publications the order of adding to an image the Poisson and Gaussian types of noise.
+### Added
+- "Gain" parameter for Poisson noising part of "noise2image" and "add_noise" methods of the ***UscopeScene** class.
+### Changed
+- Arguments naming for "noise2image" and "add_noise" methods ("mean_noise" -> "mean_g", "sigma_noise" -> "sigma_g").
+- Docstrings for "noise2image" and "add_noise" methods.
+- "\_\_all\_\_" parameter specification (now checker should automatically recognize imports of classes).
+
 ## [0.0.4] - 2025-10-14
 ### Added
 - Method for casting images from commonly supported (uint8, uint16 and float) to float with range [-1.0, 1.0], equal int8 range

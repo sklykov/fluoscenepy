@@ -20,3 +20,4 @@ elif __name__ == "fluoscenepy":
 if __name__ != "__main__" and __name__ != "__mp_main__":
     # Main classes, functions and variables auto export happened on the import call for this package
     from .fluoscene import UscopeScene, FluorObj, force_precompilation
+    __all__ = ["UscopeScene", "FluorObj", "force_precompilation"]

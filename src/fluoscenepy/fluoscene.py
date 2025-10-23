@@ -20,11 +20,9 @@ from matplotlib.patches import Circle, Ellipse
 
 # For compatibility between running configurations in Spyder and PyCharm IDEs
 import matplotlib
-try:
-    matplotlib.use('TkAgg')  # for PyCharm (PyQt5 backend doesn't render graphs called in a Python console)
-except ImportError:  # for Spyder, because it imports and uses pyqt by default
-    pass
+matplotlib.use('Qt5Agg')
 
+# Flag for using numba for compilation of computation methods
 numba_installed = False
 try:
     import numba
@@ -53,9 +51,9 @@ else:
 # %% Scene (image) class def.
 class UscopeScene:
     """
-    Replicate the common fluorescence microscopic image (frame or 'scene'). \n
+    Replicate the common fluorescence microscopic image (frame or 'scene').
 
-    This class simulates the bright objects with round and elongate shapes as the basic examples of imaged objects. \n
+    \nThis class simulates the bright objects with round and elongate shapes as the basic examples of imaged objects. \n
     The ratio behind development of this class - to get the ground truth images for image processing workflows tests. \n
     For more complex and useful cases, please, check the References.
 
@@ -136,8 +134,7 @@ class UscopeScene:
                            n_objects: int = 2, shapes: str = 'round', image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
                            verbose_info: bool = False, accelerated: bool = False) -> tuple:
         """
-        Generate objects with randomized shape sizes, for shape types: 'round', 'ellipse', 'mixed' - last one for randomized choice
-        between 2 first ones.
+        Generate objects with randomized shape sizes, for shape types: 'round', 'ellipse', 'mixed' (random choice between first two).
 
         Objects should be instances of FluorObj() class from this module.
 
@@ -229,8 +226,7 @@ class UscopeScene:
                         n_objects: int = 2, shapes: str = 'round', image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
                         verbose_info: bool = False) -> tuple:
         """
-        Generate objects with randomized shape sizes, for shape types: 'round', 'ellipse', 'mixed' - last one for randomized choice
-        between 2 first ones.
+        Generate objects with randomized shape sizes, for shape types: 'round', 'ellipse', 'mixed' (random choice between first two).
 
         This method is accelerated by utilizing the 'numba' library compilation of called inside methods. \n
         Objects should be instances of FluorObj() class from this module.
@@ -646,8 +642,9 @@ class UscopeScene:
     def put_objects_on(self, fluo_objects: tuple = (), save_objects: bool = True, save_only_objects_inside: bool = False,
                        rewrite_objects: bool = False):
         """
-        Put the provided objects on the scene by checking pixelwise the provided profiles and in the case of intersection of
-        two objects profiles, selecting the maximum intensity from them.
+        Put the provided objects on the scene by checking pixelwise the provided profiles.
+
+        In the case of intersection of two objects profiles, selecting the maximum intensity from them.
 
         Parameters
         ----------
@@ -797,7 +794,7 @@ class UscopeScene:
 
     def is_blank(self) -> bool:
         """
-        Returns True, if the scene (image) is blank (zeroed).
+        Return True, if the scene (image) is blank (zeroed).
 
         Returns
         -------
@@ -808,26 +805,33 @@ class UscopeScene:
         return self.__image_cleared
 
     # %% Making scene realistic and useful by adding noise: shot and detector ones
-    def add_noise(self, seed: int = None, mean_noise: Union[int, float] = None, sigma_noise: Union[int, float] = None) -> np.ndarray:
+    def add_noise(self, seed: int = None, mean_g: Union[int, float, None] = None,
+                  sigma_g: Union[int, float, None] = None, gain_p: float = 1.0) -> np.ndarray:
         """
-        Add Poisson (signal dependent shot noise) and background (Gaussian or detector) noise.
+        Add pixelwise at first Poisson (signal dependent shot noise) and after background (Gaussian or detector) noise.
 
-        Note that if the called again on the scene, this method will add newly generated noise to the initial image.
+        The equation for replacing an original pixel value: z = gain_p*Poisson(pixel) + Gaussian(mean_g, sigma_g) - as in ref. [3] \n
+        The original background (simply defined as zero valued pixel) will be set as: z0 = Gaussian(mean_g, sigma_g)  \n
+        Negative or exceeding of maximum value of original type of input image would be clipped to 0 or to max value accordingly. \n
+        Note that if the called again on the scene, this method will add newly generated noise to the initial image. \n
 
         Parameters
         ----------
         seed : int, optional \n
             Long integer for initializing pseudorandom generator for repeating generated sequences. The default is None. \n
-        mean_noise : Union[int, float], optional \n
-            Mean for Gaussian noise intensity. The default is None. \n
-        sigma_noise : Union[int, float], optional \n
-            Sigma for Gaussian noise intensity. The default is None. \n
+        mean_g : Union[int, float, None], optional \n
+            Mean for additive Gaussian noise. If None, will be set to 0.125*(max pixel value in an image). The default is None. \n
+        sigma_g : Union[int, float, None], optional \n
+            Sigma for additive Gaussian noise. If None, will be set to 0.04125*(max pixel value in an image). The default is None. \n
+        gain_p: float, optional \n
+            Gain (alpha) parameter for multiplying of Poisson distributed value of pixel intensity. The default is 1.0. \n
 
         References
         ----------
         [1] "Imaging in focus: An introduction to denoising bioimages in the era of deep learning", R.F. Laine,
         G. Jacquemet, A. Krull (2021) \n
         [2] Online Resource: https://bioimagebook.github.io/chapters/3-fluorescence/3-formation_noise/formation_noise.html  \n
+        [3] "Optimal inversion of the generalized Anscombe transformation for Poisson-Gaussian noise", M. Mäkitalo, A. Foi (2012)
 
         Returns
         -------
@@ -841,11 +845,11 @@ class UscopeScene:
             rng = np.random.default_rng(seed)
         if not self.__image_cleared:
             # Add the Gaussian noise (background)
-            if mean_noise is None:
-                mean_noise = 0.125*np.max(self.image)  # 12.5% of the max value
-            if sigma_noise is None:
-                sigma_noise = 0.33*mean_noise  # 33% of the mean
-            noisy_background = rng.normal(mean_noise, sigma_noise, size=self.image.shape)  # normally distributed noise on background
+            if mean_g is None:
+                mean_g = 0.125*np.max(self.image)  # 12.5% of the max value
+            if sigma_g is None:
+                sigma_g = 0.33*mean_g  # 33% of the mean
+            noisy_background = rng.normal(mean_g, sigma_g, size=self.image.shape)  # normally distributed noise on background
             noisy_background = np.where(noisy_background < 0.0, 0.0, noisy_background)  # check that all pixel values are positive
             # Substitute the calculated exact pixel value with the Poisson distributed one due to the properties of commonly used cameras
             h, w = self.image.shape; raw_pixels = np.zeros(shape=self.image.shape)
@@ -857,7 +861,7 @@ class UscopeScene:
             for i in range(h):
                 for j in range(w):
                     if float(self.image[i, j]) > 0.0:
-                        raw_pixels[i, j] = rng.poisson(lam=self.image[i, j])  # save converted original value with the Poisson-distributed
+                        raw_pixels[i, j] = gain_p*rng.poisson(lam=self.image[i, j])  # save converted original value with the Poisson-distributed
                         raw_pixels[i, j] += noisy_background[i, j]  # add Gaussian noise
                         if raw_pixels[i, j] > self.max_pixel_value:
                             raw_pixels[i, j] = self.max_pixel_value  # check that the pixel values are still in range with the image type
@@ -886,27 +890,40 @@ class UscopeScene:
         return self.image
 
     @staticmethod
-    def noise2image(image: np.ndarray, seed: int = None, mean_noise: Union[int, float] = None,
-                    sigma_noise: Union[int, float] = None) -> np.ndarray:
+    def noise2image(image: np.ndarray, seed: int = None, mean_g: Union[int, float, None] = None,
+                    sigma_g: Union[int, float, None] = None, gain_p: float = 1.0) -> np.ndarray:
         """
-        Add noise to the image: normal (Gaussian) with mean provided in mean_noise and sigma in sigma_noise parameters and
-        the Poisson noise afterward.
+        Add pixelwise at first Poisson (signal dependent shot noise) and after background (Gaussian or detector) noise.
+
+        The equation for replacing an original pixel value: z = gain_p*Poisson(pixel) + Gaussian(mean_g, sigma_g) - as in ref. [3] \n
+        The original background (simply defined as zero valued pixel) will be set as: z0 = Gaussian(mean_g, sigma_g)  \n
+        Negative or exceeding of maximum value of original type of input image would be clipped to 0 or to max value accordingly. \n
+        Note that if the called again on the scene, this method will add newly generated noise to the initial image. \n
 
         Parameters
         ----------
         image : np.ndarray
             2D array as an image.
         seed : int, optional
-            Integer used for repeatability of numpy random generation methods. The default is None.
-        mean_noise : Union[int, float], optional
-            rng.normal(mean_noise, sigma_noise...) - used in this call. The default is None (mean = 0.125*max(source_image))
-        sigma_noise : Union[int, float], optional
-            rng.normal(mean_noise, sigma_noise...) - used in this call. The default is None (sigma = 0.04125*max(source_image)).
+            Integer seed used for repeatability of numpy random generation methods. The default is None.
+        mean_g : Union[int, float, None], optional
+            rng.normal(mean_g, sigma_g...) - used in this call. The default is None (mean = 0.125*max(source_image)).
+        sigma_g : Union[int, float, None], optional
+            rng.normal(mean_g, sigma_g...) - used in this call. The default is None (sigma = 0.04125*max(source_image)).
+        gain_p: float, optional \n
+            Gain (alpha) parameter for multiplying of Poisson distributed value of pixel intensity. The default is 1.0. \n
 
         Raises
         ------
         ValueError
             Check error signature.
+
+        References
+        ----------
+        [1] "Imaging in focus: An introduction to denoising bioimages in the era of deep learning", R.F. Laine,
+        G. Jacquemet, A. Krull (2021) \n
+        [2] Online Resource: https://bioimagebook.github.io/chapters/3-fluorescence/3-formation_noise/formation_noise.html  \n
+        [3] "Optimal inversion of the generalized Anscombe transformation for Poisson-Gaussian noise", M. Mäkitalo, A. Foi (2012)
 
         Returns
         -------
@@ -921,19 +938,19 @@ class UscopeScene:
         else:
             rng = np.random.default_rng(seed)
         # Add the Gaussian noise (background)
-        if mean_noise is None:
-            mean_noise = 0.125*np.max(source_image)  # 12.5% of the max value
-        if sigma_noise is None:
-            sigma_noise = 0.33*mean_noise  # 33% of the mean
-        noisy_background = rng.normal(mean_noise, sigma_noise, size=source_image.shape)  # normally distributed noise on background
+        if mean_g is None:
+            mean_g = 0.125*np.max(source_image)  # 12.5% of the max value
+        if sigma_g is None:
+            sigma_g = 0.33*mean_g  # 33% of the mean
+        noisy_background = rng.normal(mean_g, sigma_g, size=source_image.shape)  # normally distributed noise on background
         noisy_background = np.where(noisy_background < 0.0, 0.0, noisy_background)  # check that all pixel values are positive
         # Substitute the calculated exact pixel value with the Poisson distributed one due to the properties of commonly used cameras
         h, w = source_image.shape; raw_pixels = np.zeros(shape=source_image.shape, dtype=np.float64)
         # Define max pixel value
         if source_image.dtype == np.uint8:
-            max_pixel_value = 255
+            max_pixel_value = np.iinfo(np.uint8).max
         elif source_image.dtype == np.uint16:
-            max_pixel_value = 2**16 - 1
+            max_pixel_value = np.iinfo(np.uint16).max
         elif source_image.dtype == np.float64:
             max_pixel_value = 1.0
         else:
@@ -942,7 +959,7 @@ class UscopeScene:
         for i in range(h):
             for j in range(w):
                 if float(source_image[i, j]) > 0.0:
-                    raw_pixels[i, j] = rng.poisson(lam=source_image[i, j])  # save converted original value with the Poisson-distributed
+                    raw_pixels[i, j] = gain_p*rng.poisson(lam=source_image[i, j])  # save converted original value with the Poisson-distributed
                     raw_pixels[i, j] += noisy_background[i, j]  # add Gaussian noise
                     if raw_pixels[i, j] > max_pixel_value:
                         raw_pixels[i, j] = max_pixel_value  # check that the pixel values are still in range with the image type
@@ -1177,7 +1194,6 @@ class FluorObj:
     def get_shape(self, center_shifts: tuple = None, accelerated: bool = False) -> Union[np.ndarray, None]:
         """
         Calculate and return 2D intensity normalized (to the range [0.0, 1.0]) distribution of the object shape.
-
 
         Parameters
         ----------
@@ -1479,7 +1495,7 @@ class FluorObj:
     # %% Rewriting dunder methods for implementing sorting logic
     def __lt__(self, other) -> bool:
         """
-        Implementation of '<' comparison operator for letting the default sorting method to work on list of instances.
+        Implement '<' comparison operator for letting the default sorting method to work on list of instances.
 
         This method compares only shape sizes multiplication (m, n = self.profile.shape; m*n < other.profile.shape[0]*other.profile.shape[1]).
 
@@ -1501,7 +1517,7 @@ class FluorObj:
 
     def __eq__(self, other) -> bool:
         """
-        Implementation of '==' comparison operator for letting the default sorting method to work on list of instances.
+        Implement '==' comparison operator for letting the default sorting method to work on list of instances.
 
         This method compares shape size (m, n = self.profile.shape; m == other.profile.shape[0] and n == other.profile.shape[1])
         and also explicit_shape_name attributes of two classes.
@@ -1667,8 +1683,8 @@ if __name__ == "__main__":
         obj61_p = scene8.set_random_places(objs6, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         scene8.put_objects_on(obj61_p, save_only_objects_inside=True); scene8.show_scene("Without additional noise")
         scene8.add_noise(); scene8.show_scene("With default noise")
-        scene8.add_noise(mean_noise=180//6, sigma_noise=180//9); scene8.show_scene("With stronger noise")
-        scene8.add_noise(mean_noise=180//4, sigma_noise=180//6); scene8.show_scene("With much more stronger noise")
+        scene8.add_noise(mean_g=180//6, sigma_g=180//9); scene8.show_scene("With stronger noise")
+        scene8.add_noise(mean_g=180//4, sigma_g=180//6); scene8.show_scene("With much more stronger noise")
         scene8.remove_noise(); scene8.show_scene("Removed noise")
     # Test reworked algorithm for placing large number of circles that should / not lay within the scene, not touching / overlapping
     if test_placing_circles:
@@ -1776,7 +1792,7 @@ if __name__ == "__main__":
     if test_cast:
         scene = UscopeScene(width=267, height=232, image_type=np.uint16)
         objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(0, 4094), n_objects=14, image_type=scene.img_type)
-        objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(mean_noise=200); scene.show_scene()
+        objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(mean_g=200); scene.show_scene()
         img_neg_norm = UscopeScene.cast_image(scene.image); img_int8 = UscopeScene.cast_image(scene.image, option='int8')
         img_int16 = UscopeScene.cast_image(scene.image, option='int16')
 
