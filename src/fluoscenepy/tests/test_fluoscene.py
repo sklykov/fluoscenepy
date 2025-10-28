@@ -134,6 +134,8 @@ def test_other_methods():
         noisy_img = UscopeScene.noise2image(scene4.image)
         assert noisy_img.shape == scene4.image.shape, "Shapes of input and output images for noise2image() method not equal"
         assert np.max(noisy_img) != np.max(scene4.image), "Max pixel values for noisy and source image should be different"
+        noisy_img2 = UscopeScene.noise2image(scene4.image, mean_g=2, sigma_g=21, gain_p=0.5)
+        assert np.max(noisy_img2) < np.max(scene4.image), "Gain hasn't reduced max pixel value in process of adding noise to an image"
     else:
         assert False, "Something wrong with 'get_random_objects' method (check 'test_other_methods' function)"
 

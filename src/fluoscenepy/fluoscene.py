@@ -834,7 +834,7 @@ class UscopeScene:
         [1] "Imaging in focus: An introduction to denoising bioimages in the era of deep learning", R.F. Laine,
         G. Jacquemet, A. Krull (2021) \n
         [2] Online Resource: https://bioimagebook.github.io/chapters/3-fluorescence/3-formation_noise/formation_noise.html  \n
-        [3] "Optimal inversion of the generalized Anscombe transformation for Poisson-Gaussian noise", M. Mäkitalo, A. Foi (2012)
+        [3] "Optimal inversion of the generalized Anscombe transformation for Poisson-Gaussian noise", M. Mäkitalo, A. Foi (2012) \n
 
         Returns
         -------
@@ -905,14 +905,14 @@ class UscopeScene:
 
         Parameters
         ----------
-        image : np.ndarray
-            2D array as an image.
-        seed : int, optional
+        image : np.ndarray \n
+            2D array as an image.\n
+        seed : int, optional\n
             Integer seed used for repeatability of numpy random generation methods. The default is None.
-        mean_g : Union[int, float, None], optional
-            rng.normal(mean_g, sigma_g...) - used in this call. The default is None (mean = 0.125*max(source_image)).
-        sigma_g : Union[int, float, None], optional
-            rng.normal(mean_g, sigma_g...) - used in this call. The default is None (sigma = 0.04125*max(source_image)).
+        mean_g : Union[int, float, None], optional\n
+            rng.normal(mean_g, sigma_g...) - used in this call. The default is None (mean = 0.125*max(source_image)).\n
+        sigma_g : Union[int, float, None], optional\n
+            rng.normal(mean_g, sigma_g...) - used in this call. The default is None (sigma = 0.04125*max(source_image)).\n
         gain_p: float, optional \n
             Gain (alpha) parameter for multiplying of Poisson distributed value of pixel intensity. The default is 1.0. \n
 
@@ -926,12 +926,12 @@ class UscopeScene:
         [1] "Imaging in focus: An introduction to denoising bioimages in the era of deep learning", R.F. Laine,
         G. Jacquemet, A. Krull (2021) \n
         [2] Online Resource: https://bioimagebook.github.io/chapters/3-fluorescence/3-formation_noise/formation_noise.html  \n
-        [3] "Optimal inversion of the generalized Anscombe transformation for Poisson-Gaussian noise", M. Mäkitalo, A. Foi (2012)
+        [3] "Optimal inversion of the generalized Anscombe transformation for Poisson-Gaussian noise", M. Mäkitalo, A. Foi (2012) \n
 
         Returns
         -------
-        noisy_image : np.ndarray
-            With the type as the input image.
+        noisy_image : np.ndarray\n
+            With the type as the input image.\n
 
         """
         source_image = np.copy(image)  # to guarantee that input image is not modified
@@ -982,18 +982,18 @@ class UscopeScene:
 
         Parameters
         ----------
-        img : np.ndarray
-            Input image as numpy array with real dtype.
-        option : str
+        img : np.ndarray\n
+            Input image as numpy array with real dtype.\n
+        option : str\n
             One of the options: 'neg.norm.', 'int8', 'int16', where:\n
             'neg.norm.' - output np.float64 image normalized to [-1.0, 1.0]; \n
             'int8' - output np.int8 image rescaled to [-127, 127]; \n
-            'int16' output np.int16 image rescaled to [-32767, 32767]
+            'int16' output np.int16 image rescaled to [-32767, 32767]\n
 
         Returns
         -------
-        np.ndarray or None
-            Converted image or None if some exception occurs.
+        np.ndarray or None\n
+            Converted image or None if some exception occurs.\n
         """
         target = img.copy()  # not operating on an input image as a reference
         option = option.replace(" ", "")  # prevent mistakes in typing, like "neg. norm."
@@ -1786,11 +1786,11 @@ if __name__ == "__main__":
     if test_add_noise_ext_img:
         scene4noise = UscopeScene(width=169, height=197)
         print(scene4noise.shape_types)
-        objs20 = scene4noise.get_objects_acc(mean_size=(9, 15), size_std=(3, 6), intensity_range=(220, 251), shapes='mixed', n_objects=14,
+        objs20 = scene4noise.get_objects_acc(mean_size=(5, 10), size_std=(1, 4), intensity_range=(220, 251), shapes='mixed', n_objects=9,
                                              verbose_info=True)
         objs20 = scene4noise.set_random_places(objs20, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
-        scene4noise.put_objects_on(objs20); scene4noise.show_scene(); noisy_img = UscopeScene.noise2image(scene4noise.image)
-        scene4noise.image = noisy_img; scene4noise.show_scene()
+        scene4noise.put_objects_on(objs20); scene4noise.show_scene()
+        noisy_img = scene4noise.add_noise(mean_g=5, sigma_g=22, gain_p=0.55); scene4noise.show_scene()
 
     if test_cast:
         scene = UscopeScene(width=267, height=232, image_type=np.uint16)
