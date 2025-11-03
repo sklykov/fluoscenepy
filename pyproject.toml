@@ -18,7 +18,7 @@ dependencies = [
     "numpy",
     "matplotlib",
 ]
-keywords = ["fluorescent microscopic image simulation"]
+keywords = ["fluorescent-microscopic-image-simulation"]
 
 [project.urls]  # METADATA in wheel file will represent the data below by using pip show zernpy -v
 # The links below are mapped / parsed by the PyPi website
@@ -28,8 +28,7 @@ keywords = ["fluorescent microscopic image simulation"]
 "Documentation" = "https://sklykov.github.io/fluoscenepy/api_doc/fluoscenepy/fluoscene.html"
 "Changelog" = "https://github.com/sklykov/fluoscenepy/blob/main/CHANGELOG.md"
 
-# [tool.setuptools.packages.find]  # Manifest.in file is only required for adding some package-data
-# where = ["src"]  # there is no need to specify this here
+# [tool.setuptools.packages.find]  # Manifest.in file is only required for adding some package-data and exlude it
 
 # Below - specification of version within the package by discovering attribute in project files
 [tool.setuptools.dynamic]
@@ -37,5 +36,5 @@ keywords = ["fluorescent microscopic image simulation"]
 version = {attr = "fluoscenepy.__version__"}  # Variable set in the __init__.py
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=75.0"]
 build-backend = "setuptools.build_meta"

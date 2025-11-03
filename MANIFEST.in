@@ -1,1 +1,3 @@
-include ./src/fluoscenepy/readme_images/*.png CHANGELOG.md
+include CHANGELOG.md
+
+recursive-exclude src/fluoscenepy/case_studies *

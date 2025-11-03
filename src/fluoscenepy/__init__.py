@@ -8,7 +8,7 @@ The "fluoscenepy" package is intended for simulation of a microscopic fluorescen
 
 """
 
-__version__ = "0.0.4"  # Straightforward way of specifying package version and including it to the package attributes
+__version__ = "0.0.5"  # Straightforward way of specifying package version and including it to the package attributes
 
 if __name__ == "__main__":
     __all__ = ['fluoscene']  # for specifying 'from fluoscenepy import *' if package imported from some script
