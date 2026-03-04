@@ -19,6 +19,14 @@ if __name__ != "__main__":
 
 # %% Tests
 def test_scene_initialization():
+    """
+    Test UscopeScene class initialization cases.
+
+    Returns
+    -------
+    None.
+
+    """
     try:
         UscopeScene(width=1, height=6)
         assert False, "Wrong initialization (UscopeScene(width=1, height=6)) not thrown the error"

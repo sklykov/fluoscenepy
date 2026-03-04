@@ -17,6 +17,11 @@ from numbers import Real
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Circle, Ellipse
+import logging
+
+from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
+from .utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
+                               get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list, set_binary_mask_coords_in_loop)
 
 # For compatibility between running configurations in Spyder and PyCharm IDEs
 import matplotlib
@@ -31,24 +36,29 @@ try:
     import numba
     if numba is not None:
         numba_installed = True
+        logging.getLogger('numba').setLevel(logging.WARNING)  # disable many DEBUG level logs caused by numba during compilation
 except ModuleNotFoundError:
     pass
 
+if numba_installed:
+    from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
+    from .utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
+
 # %% Local (package-scoped) imports
-if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
-    from utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
-    from utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
-                                  get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list, set_binary_mask_coords_in_loop)
-    if numba_installed:
-        from utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
-        from utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
-else:
-    from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
-    from .utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
-                                   get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list, set_binary_mask_coords_in_loop)
-    if numba_installed:
-        from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
-        from .utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
+# if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
+#     from utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
+#     from utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
+#                                   get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list, set_binary_mask_coords_in_loop)
+#     if numba_installed:
+#         from utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
+#         from utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
+# else:
+#     from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
+#     from .utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
+#                                    get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list, set_binary_mask_coords_in_loop)
+#     if numba_installed:
+#         from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
+#         from .utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
 
 
 # %% Scene (image) class def.
@@ -1560,7 +1570,7 @@ def force_precompilation():
         probe_obj = FluorObj(typical_size=2.0); probe_obj.get_shape(accelerated=True); del probe_obj  # for round shape
         probe_obj = FluorObj(shape_type='ellipse', typical_size=(2.65, 2.0, np.pi/6.0)); probe_obj.get_shape(accelerated=True); del probe_obj
     else:
-        __warn_message = "Acceleration isn't possible because 'numba' library not installed in the current environment"
+        __warn_message = "\nAcceleration isn't possible because 'numba' library not installed in the current environment"
         warnings.warn(__warn_message)
 
 
@@ -1575,7 +1585,7 @@ if __name__ == "__main__":
     test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = False; test_various_noises = False
     shifts = (-0.2, 0.44); test_cropping_shifted_circles = False; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
     test_compiling_acceleration = False  # testing the acceleration through compilation using numba
-    test_placing_circles = False  # testing speed up placing algorithm
+    test_placing_circles = True  # testing speed up placing algorithm
     prepare_centered_docs_images = False  # for making centered sample images for preparing Readme file about this project
     prepare_shifted_docs_images = False; shifts_sample = (0.24, 0.0)  # for making shifted sample images for preparing Readme
     prepare_scene_samples = False  # for preparing illustrative scenes with placed on them objects
