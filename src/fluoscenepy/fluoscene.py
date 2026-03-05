@@ -64,7 +64,7 @@ class UscopeScene:
     denoised_image: Optional[np.ndarray] = None  # keep copy of an initial, free from noise image
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
     __round_fl_obj = None; __ellipse_fl_obj = None  # placeholders for classes used for precompilation of methods by numba
-    __cast_options: list = ["neg.norm.", "int8", "int16"]
+    __cast_options: list = ["neg.norm.", "int8", "int16"]  # short identifiers for supported casting options
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
                  numba_precompile: bool = True):
@@ -607,16 +607,12 @@ class UscopeScene:
                             # Exclude placed object from binary placement mask
                             if not numba_installed:
                                 self.__binary_placement_mask = set_binary_mask_coords_in_loop(self.__binary_placement_mask,
-                                                                                              i_obj, i_obj+h_fl_obj,
-                                                                                              self.image.shape[0],
-                                                                                              j_obj, j_obj+w_fl_obj,
-                                                                                              self.image.shape[1])
+                                                                                              i_obj, i_obj+h_fl_obj, self.image.shape[0],
+                                                                                              j_obj, j_obj+w_fl_obj, self.image.shape[1])
                             else:
                                 self.__binary_placement_mask = set_binary_mask_coordinates(self.__binary_placement_mask,
-                                                                                           i_obj, i_obj+h_fl_obj,
-                                                                                           self.image.shape[0],
-                                                                                           j_obj, j_obj+w_fl_obj,
-                                                                                           self.image.shape[1])
+                                                                                           i_obj, i_obj+h_fl_obj, self.image.shape[0],
+                                                                                           j_obj, j_obj+w_fl_obj, self.image.shape[1])
                             fluo_obj.set_coordinates((i_obj, j_obj))  # if found place, place the object
                             filtered_fluo_obj.append(fluo_obj); placed_objects += 1  # collect for returning only placed objects
                             if verbose_info:
@@ -722,15 +718,14 @@ class UscopeScene:
             self.put_objects_on(fluo_objects=tuple(self.fluo_objects), save_objects=False)
         elif not self.__image_cleared:
             if len(self.__warn_message) == 0:
-                self.__warn_message = "The scene is not clear, cannot recreate the scene"
-                warnings.warn(self.__warn_message)
-            elif self.__warn_message == "The scene is not clear, cannot recreate the scene":
+                self.__warn_message = "\nThe scene is not blank (cleared), cannot recreate the scene"; warnings.warn(self.__warn_message)
+            elif self.__warn_message == "\nThe scene is not blank (cleared), cannot recreate the scene":
                 self.__warn_message = ""
         elif len(self.fluo_objects) == 0:
             if len(self.__warn_message) == 0:
-                self.__warn_message = "There are no stored objects within this class instance"
+                self.__warn_message = "\nThere are no stored 'fluorescent' objects within this class instance"
                 warnings.warn(self.__warn_message)
-            elif self.__warn_message == "There are no stored objects within this class instance":
+            elif self.__warn_message == "\nThere are no stored 'fluorescent' objects within this class instance":
                 self.__warn_message = ""
 
     # %% Scene manipulation
@@ -974,9 +969,9 @@ class UscopeScene:
             Input image as numpy array with real dtype.\n
         option : str\n
             One of the options: 'neg.norm.', 'int8', 'int16', where:\n
-            'neg.norm.' - output np.float64 image normalized to [-1.0, 1.0]; \n
-            'int8' - output np.int8 image rescaled to [-127, 127]; \n
-            'int16' output np.int16 image rescaled to [-32767, 32767]\n
+            'neg.norm.' - output np.float64 image normalized to [-1.0, 1.0] ('negative normalized'); \n
+            'int8' - output np.int8 image rescaled to [-127, 127] (int8 plus max range in a sense: [-max, max]); \n
+            'int16' output np.int16 image rescaled to [-32767, 32767] (int16 plus max range in a sense: [-max, max]) \n
 
         Returns
         -------
@@ -1227,7 +1222,7 @@ class FluorObj:
                 self.profile = discrete_shaped_bead_acc(self.radius, self.center_shifts)
             else:
                 if accelerated and not numba_installed:
-                    __warn_message = "Acceleration isn't possible because 'numba' library not installed in the current environment"
+                    __warn_message = "\nAcceleration isn't possible because 'numba' library not installed in the current environment"
                     warnings.warn(__warn_message)
                 self.profile = discrete_shaped_bead(self.radius, self.center_shifts)
         elif self.shape_type == "ellipse" or self.shape_type == "el":
@@ -1238,7 +1233,7 @@ class FluorObj:
                 self.profile = discrete_shaped_ellipse_acc(sizes, ellipse_angle, self.center_shifts)
             else:
                 if accelerated and not numba_installed:
-                    __warn_message = "Acceleration isn't possible because 'numba' library not installed in the current environment"
+                    __warn_message = "\nAcceleration isn't possible because 'numba' library not installed in the current environment"
                     warnings.warn(__warn_message)
                 self.profile = discrete_shaped_ellipse(sizes, ellipse_angle, self.center_shifts)
         else:
