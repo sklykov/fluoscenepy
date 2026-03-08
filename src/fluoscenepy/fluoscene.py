@@ -64,7 +64,7 @@ class UscopeScene:
     denoised_image: Optional[np.ndarray] = None  # keep copy of an initial, free from noise image
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
     __round_fl_obj = None; __ellipse_fl_obj = None  # placeholders for classes used for precompilation of methods by numba
-    __cast_options: list = ["neg.norm.", "int8", "int16"]  # short identifiers for supported casting options
+    __cast_options: list = ["neg.norm.", "int8", "int16", "norm"]  # short identifiers for supported casting options
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
                  numba_precompile: bool = True):
@@ -982,33 +982,41 @@ class UscopeScene:
         option = option.replace(" ", "")  # prevent mistakes in typing, like "neg. norm."
         if option in cls.__cast_options:
             target = target.astype(np.float64)  # universal cast for array manipulations
-            if option == cls.__cast_options[0]:
+            if option == cls.__cast_options[0]:  # "neg.norm."
                 if np.min(target) < 0.0:
-                    # Following logic applied: [-2.0, 0.0, 0.8] -> [-1.0, 0.0, 0.4] - not scaled to [-1.0, 1.0] but normalized to [-1 1]
+                    # Following logic applied: [-2.0, 0.0, 0.8] -> [-1.0, 0.0, 0.4] - not scaled to [-1.0, 1.0] but normalized to [-1.0, 1.0]
                     if np.abs(np.min(target)) > np.abs(np.max(target)):
-                        target /= np.abs(np.min(target)); target = np.round(target, 9)
+                        target /= np.abs(np.min(target))
                     else:
-                        target /= np.abs(np.max(target)); target = np.round(target, 9)
+                        target /= np.abs(np.max(target))
                     return target
                 else:
                     target -= 0.5*np.max(target)  # shift image from [0.0 ... max] to [-0.5 max, 0.5 max]
-                    target /= np.max(target); target = np.round(target, 9)  # should normalize target to [-1.0, 1.0]
+                    target /= np.max(target)  # should normalize target to [-1.0, 1.0]
                     # Check that pixel values are within the range
                     if np.max(target) > 1.0:
-                        target /= np.max(target); target = np.round(target, 9)
+                        target /= np.max(target)
                     if np.min(target) < -1.0:
-                        target /= np.abs(np.min(target)); target = np.round(target, 9)
+                        target /= np.abs(np.min(target))
                     return target
-            elif option == cls.__cast_options[1]:
+            elif option == cls.__cast_options[1]:  # "int8"
                 norm_neg_target = UscopeScene.cast_image(img)  # get normalized to [-1.0, 1.0] image by default
                 norm_neg_target *= np.iinfo(np.int8).max  # just use uniform transform to [-127.0, 127.0]
                 norm_neg_target = np.round(norm_neg_target, 0)  # prepare to conversion to integer values
                 return norm_neg_target.astype(np.int8)
-            elif option == cls.__cast_options[2]:
+            elif option == cls.__cast_options[2]:  # "int16"
                 norm_neg_target = UscopeScene.cast_image(img)  # get normalized to [-1.0, 1.0] image by default
                 norm_neg_target *= np.iinfo(np.int16).max  # just use uniform transform to [-32767.0, 32767.0]
                 norm_neg_target = np.round(norm_neg_target, 0)  # prepare to conversion to integer values
                 return norm_neg_target.astype(np.int16)
+            elif option == cls.__cast_options[3] or option == (cls.__cast_options[3] + "."):  # "norm" or "norm."
+                min_pixel = np.min(target)
+                if min_pixel < 0.0:  # shift all pixel values to make them non-negative and check that max pixel allows normalization
+                    target += min_pixel
+                max_pixel = np.max(target)
+                if max_pixel > 0.0 and max_pixel > 1.0:  # not only for
+                    target /= max_pixel
+                return target
             else:
                 return None
         else:
