@@ -6,6 +6,7 @@ The pytest library available on: https://docs.pytest.org/en/latest/contents.html
 For running collected here tests, it's enough to run the command "pytest" from the repository location in the command line.
 
 @author: Sergei Klykov
+
 @licence: MIT
 
 """
@@ -20,7 +21,7 @@ if __name__ != "__main__":
 # %% Tests
 def test_scene_initialization():
     """
-    Test UscopeScene class initialization cases.
+    Test the 'UscopeScene' class initialization cases.
 
     Returns
     -------
@@ -54,6 +55,14 @@ def test_scene_initialization():
 
 
 def test_fluorobj_initialization():
+    """
+    Test the 'UscopeScene' class initialization cases.
+
+    Returns
+    -------
+    None.
+
+    """
     # False parameters provided for initialization - tests should fail
     try:
         FluorObj(typical_size=-0.4)
@@ -76,7 +85,7 @@ def test_fluorobj_initialization():
                        + " - not thrown the error for typical sizes out of range")
     except ValueError:
         pass
-    # Checking initialization logic
+    # Checking initialization logic - acceptable parameters passed
     flobj = FluorObj(typical_size=4.75); flobj.get_shape(); flobj.crop_shape()
     assert flobj.profile.shape[0] > 4 and flobj.profile.shape[1] > 4, f"Profile sizes out of the expected range (5, 5): {flobj.profile.shape}"
     flobj = FluorObj(typical_size=(4.2, 5.1, 0.25*np.pi), shape_type='el'); flobj.get_shape(accelerated=False)
@@ -91,6 +100,14 @@ def test_fluorobj_initialization():
 
 
 def test_objects_generation():
+    """
+    Test methods of UscopeScene for creation and placing of objects with various shapes.
+
+    Returns
+    -------
+    None.
+
+    """
     # Not accelerated generation testing
     circles = UscopeScene.get_round_objects(mean_size=8, size_std=1.5, intensity_range=(202, 253), n_objects=5)
     scene = UscopeScene(width=55, height=42, image_type='uint16')
@@ -103,8 +120,7 @@ def test_objects_generation():
     placed_objs = scene2.set_random_places(precise_objs, overlapping=False, touching=False, only_within_scene=True)
     scene2.put_objects_on(placed_objs, save_only_objects_inside=True)
     assert len(placed_objs) <= len(precise_objs), "Number of placed objects more than number of generated 'precise' objects"
-    # Testing for found bug in ver. 0.0.2 - getting wrong sizes for samples
-    n_tested_objs = 79
+    n_tested_objs = 79  # all objects should be created, if not - getting wrong sizes for samples
     robjs2 = UscopeScene.get_round_objects(mean_size=12, size_std=8, intensity_range=(230, 254), n_objects=n_tested_objs)
     assert len(robjs2) == n_tested_objs, f"Round object generation not creating {n_tested_objs} objects as expected"
     # Acceleration generation testing
@@ -112,7 +128,7 @@ def test_objects_generation():
     try:
         import numba; numba_not_installed = False
         if numba is not None and not numba_not_installed:
-            scene2.precompile_methods()  # verbose call of precompilation
+            scene2.precompile_methods()  # verbose call of precompilation from a class
             objs3 = scene2.get_objects_acc(mean_size=(2.5, 1.5), size_std=(1.0, 0.65), intensity_range=(240, 255),
                                            n_objects=5, shapes='ellipse')
             assert len(objs3) == 5, f"Number of generation objects by accelerated method is less than 3: {len(objs3)}"
@@ -127,6 +143,14 @@ def test_objects_generation():
 
 
 def test_other_methods():
+    """
+    Test adding noise to generated objects by using either accelerated method, or alternative method.
+
+    Returns
+    -------
+    None.
+
+    """
     scene4 = UscopeScene(width=63, height=57); objs4 = None
     try:
         import numba
@@ -149,6 +173,14 @@ def test_other_methods():
 
 
 def test_radiuses_generation():
+    """
+    Test edge case for ellipse shaped object generation.
+
+    Returns
+    -------
+    None.
+
+    """
     for i in range(250):
         r = get_radius_gaussian(r=1.5, r_std=1.0, mean_size=1.5, size_std=1.0)
         assert r >= 0.5, f"Generated r < 0.5: {round(r, 3)}"
@@ -158,10 +190,18 @@ def test_radiuses_generation():
 
 
 def test_cast_images():
+    """
+    Test casting methods for images.
+
+    Returns
+    -------
+    None.
+
+    """
     scene = UscopeScene(width=267, height=232, image_type=np.uint16)
     objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(0, 4094), n_objects=14, image_type=scene.img_type)
     objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(mean_g=200); scene.show_scene()
-    img_neg_norm = UscopeScene.cast_image(scene.image)
+    img_neg_norm = UscopeScene.cast_image(scene.image, option="neg.norm.")
     assert np.min(img_neg_norm) == -1.0 and np.max(img_neg_norm) == 1.0, "Image casting ('cast_image') to range [-1.0, 1.0] has a problem"
     img_int8 = UscopeScene.cast_image(scene.image, option='int8'); int8min = np.iinfo(np.int8).min; int8max = np.iinfo(np.int8).max
     assert np.min(img_int8) >= int8min and np.max(img_int8) == int8max, "Image casting ('cast_image') to int8 range [-127, 127] has a problem"

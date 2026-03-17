@@ -64,7 +64,7 @@ class UscopeScene:
     denoised_image: Optional[np.ndarray] = None  # keep copy of an initial, free from noise image
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
     __round_fl_obj = None; __ellipse_fl_obj = None  # placeholders for classes used for precompilation of methods by numba
-    __cast_options: list = ["neg.norm.", "int8", "int16", "norm"]  # short identifiers for supported casting options
+    __cast_options: list = ["neg.norm.", "int8", "int16", "norm", "uint8"]  # short identifiers for the supported casting options
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
                  numba_precompile: bool = True):
@@ -959,7 +959,7 @@ class UscopeScene:
         return noisy_image
 
     @classmethod
-    def cast_image(cls, img: np.ndarray, option: str = "neg.norm.") -> Union[np.ndarray, None]:
+    def cast_image(cls, img: np.ndarray, option: str = "norm") -> Union[np.ndarray, None]:
         """
         Depending on selected option, output normalized to [-1.0, 1.0] range or rescaled to np.int8 or np.int16 ranges.
 
@@ -971,14 +971,15 @@ class UscopeScene:
             One of the options: 'neg.norm.', 'int8', 'int16', where:\n
             'neg.norm.' - output np.float64 image normalized to [-1.0, 1.0] ('negative normalized'); \n
             'int8' - output np.int8 image rescaled to [-127, 127] (int8 plus max range in a sense: [-max, max]); \n
-            'int16' output np.int16 image rescaled to [-32767, 32767] (int16 plus max range in a sense: [-max, max]) \n
+            'int16' - output np.int16 image rescaled to [-32767, 32767] (int16 plus max range in a sense: [-max, max]) \n
+            'norm' - output np.float64, performs: (1) making all pixels non-negative, (2) normalization if max pixel > 1.0 by dividing to it\n
 
         Returns
         -------
         np.ndarray or None\n
             Converted image or None if some exception occurs.\n
         """
-        target = img.copy()  # not operating on an input image as a reference
+        target = img.copy(); orig_dtype = img.dtype  # not operating on an input image as a reference
         option = option.replace(" ", "")  # prevent mistakes in typing, like "neg. norm."
         if option in cls.__cast_options:
             target = target.astype(np.float64)  # universal cast for array manipulations
@@ -1002,21 +1003,25 @@ class UscopeScene:
             elif option == cls.__cast_options[1]:  # "int8"
                 norm_neg_target = UscopeScene.cast_image(img)  # get normalized to [-1.0, 1.0] image by default
                 norm_neg_target *= np.iinfo(np.int8).max  # just use uniform transform to [-127.0, 127.0]
-                norm_neg_target = np.round(norm_neg_target, 0)  # prepare to conversion to integer values
+                norm_neg_target = np.round(norm_neg_target, 0)  # prepare conversion to integer values
                 return norm_neg_target.astype(np.int8)
             elif option == cls.__cast_options[2]:  # "int16"
                 norm_neg_target = UscopeScene.cast_image(img)  # get normalized to [-1.0, 1.0] image by default
                 norm_neg_target *= np.iinfo(np.int16).max  # just use uniform transform to [-32767.0, 32767.0]
-                norm_neg_target = np.round(norm_neg_target, 0)  # prepare to conversion to integer values
+                norm_neg_target = np.round(norm_neg_target, 0)  # prepare conversion to integer values
                 return norm_neg_target.astype(np.int16)
             elif option == cls.__cast_options[3] or option == (cls.__cast_options[3] + "."):  # "norm" or "norm."
                 min_pixel = np.min(target)
                 if min_pixel < 0.0:  # shift all pixel values to make them non-negative and check that max pixel allows normalization
                     target += min_pixel
                 max_pixel = np.max(target)
-                if max_pixel > 0.0 and max_pixel > 1.0:  # not only for
+                if max_pixel > 1.0:  # so, normalize only when values aren't in a range [0.0, 1.0] already
                     target /= max_pixel
                 return target
+            elif option == cls.__cast_options[4]:
+                if orig_dtype is np.floating:  # original image has some float type
+                    pass
+
             else:
                 return None
         else:

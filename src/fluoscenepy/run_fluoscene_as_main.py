@@ -20,14 +20,14 @@ except ImportError:  # will be thrown in the environment doesn't contain Qt-like
 import matplotlib.pyplot as plt
 
 # Note: the trick below is needed only if in a development environment is already installed this package (previous version) from pypi
-# and one need to import actual files from a repository folder
+# and one need to import actual files from a repository folder instead of installed ones in an environment
 root = Path(__file__).resolve().parents[1]  # one step on top in parent folder, should be a root folder in a repo, not "src"
 if str(root) not in sys.path:
     sys.path.insert(0, str(root))  # append to the start path to a root folder of a repo for correct import in a session
 
 # Warning below should be ignored in the script context, since root path should be added before for the proper import
 import fluoscenepy.fluoscene  # for checking that this import resolves to a folder in a repository
-from fluoscenepy.fluoscene import force_precompilation, FluorObj, UscopeScene, clean_compilation_cache   # import actual functionality for tests
+from fluoscenepy.fluoscene import force_precompilation, FluorObj, UscopeScene, clean_compilation_cache   # actual functionality for tests
 
 print("Path to a project:", fluoscenepy.fluoscene.__file__, flush=True)
 actual_repo_imported = "site-packages" not in str(fluoscenepy.fluoscene.__file__)
