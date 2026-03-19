@@ -12,6 +12,7 @@ For running collected here tests, it's enough to run the command "pytest" from t
 """
 # %% Imports
 import numpy as np
+import pytest
 
 if __name__ != "__main__":
     from ..fluoscene import UscopeScene, FluorObj
@@ -54,6 +55,7 @@ def test_scene_initialization():
     assert abs(scene.max_pixel_value - scene2.max_pixel_value) < 1E-6, 'Wrong initialization for image types np.uint16 and "uint16" '
 
 
+@pytest.mark.filterwarnings("ignore::UserWarning")  # ignore any custom UserWarning, in test scenario - 'numba' not installed Warning
 def test_fluorobj_initialization():
     """
     Test the 'UscopeScene' class initialization cases.
@@ -94,6 +96,7 @@ def test_fluorobj_initialization():
     flobj = FluorObj(typical_size=2.0); flobj.get_shape(accelerated=True)
     assert flobj.profile.shape[1] == 3 and flobj.profile.shape[0] == 3, ("Profile sizes out of the expected range (3, 3): "
                                                                          + f"{flobj.profile.shape}")
+    # Test below throws out UserWarning if 'numba' not installed
     flobj = FluorObj(typical_size=(3.2, 4.2, -0.51*np.pi), shape_type='el'); flobj.get_shape(accelerated=True); flobj.crop_shape()
     flobj.get_casted_shape(max_pixel_value=100.0, image_type=np.float64)
     assert np.max(flobj.casted_profile) >= 100.0, f"Profile not casted properly, max value: {np.max(flobj.profile)}"

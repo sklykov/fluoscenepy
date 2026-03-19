@@ -6,6 +6,7 @@ Test the imports from "fluoscenepy" package.
 
 """
 import warnings
+import pytest
 
 numba_installed = True
 try:
@@ -21,14 +22,13 @@ except ModuleNotFoundError:
 # Note for further development: pytest library is capable to automatically recognize the project following 'src'
 # layout without installation in the environment, so the test below is passed even though the package not installed by pip
 # Although, the pytest should be called from the root folder of the project
+@pytest.mark.filterwarnings("ignore::UserWarning")  # ignore any custom UserWarning, in test scenario - 'numba' not installed Warning
 def test_initialization():
     try:
         from fluoscenepy import force_precompilation, FluorObj, UscopeScene
-
         if numba_installed:
             force_precompilation()  # call for numba precompilation
-
-        # Basic package usage
+        # Basic package usage. Accelerated flag below will throw out UserWarning if numba isn't installed
         fl_obj = FluorObj(typical_size=2.0, center_shifts=(-0.21, 0.32)); fl_obj.get_shape(accelerated=True)
         scene = UscopeScene(width=14, height=12); obj_pl = scene.set_random_places(tuple([fl_obj]))
         scene.put_objects_on(obj_pl)

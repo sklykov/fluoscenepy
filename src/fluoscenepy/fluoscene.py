@@ -11,7 +11,7 @@ Main script for the 'fluoscenepy' package.
 import random
 import time
 import warnings
-from typing import Union, Optional
+from typing import Union, Optional, Tuple
 from pathlib import Path
 from numbers import Real
 import numpy as np
@@ -790,7 +790,7 @@ class UscopeScene:
         """
         return self.__image_cleared
 
-    # %% Making scene realistic and useful by adding noise: shot and detector ones
+    # %% Adding shot and detector noise
     def add_noise(self, seed: int = None, mean_g: Union[int, float, None] = None,
                   sigma_g: Union[int, float, None] = None, gain_p: float = 1.0) -> np.ndarray:
         """
@@ -958,10 +958,11 @@ class UscopeScene:
             noisy_image = raw_pixels.astype(source_image.dtype)
         return noisy_image
 
+    # %% Image casting
     @classmethod
     def cast_image(cls, img: np.ndarray, option: str = "norm") -> Union[np.ndarray, None]:
         """
-        Depending on selected option, output normalized to [-1.0, 1.0] range or rescaled to np.int8 or np.int16 ranges.
+        Cast an input image if only it contains some meaningful signal (SNR >= 5.0), not just noise or being flat (constant) image.
 
         Parameters
         ----------
@@ -972,16 +973,17 @@ class UscopeScene:
             'neg.norm.' - output np.float64 image normalized to [-1.0, 1.0] ('negative normalized'); \n
             'int8' - output np.int8 image rescaled to [-127, 127] (int8 plus max range in a sense: [-max, max]); \n
             'int16' - output np.int16 image rescaled to [-32767, 32767] (int16 plus max range in a sense: [-max, max]) \n
-            'norm' - output np.float64, performs: (1) making all pixels non-negative, (2) normalization if max pixel > 1.0 by dividing to it\n
+            'norm' - output np.float64, performs: (1) making all pixels non-negative, (2) normalization if max pixel > 1.0 by dividing by it\n
 
         Returns
         -------
         np.ndarray or None\n
-            Converted image or None if some exception occurs.\n
+            Converted image or None if some exception occurs / detected.\n
         """
         target = img.copy(); orig_dtype = img.dtype  # not operating on an input image as a reference
         option = option.replace(" ", "")  # prevent mistakes in typing, like "neg. norm."
-        if option in cls.__cast_options:
+        is_img_noisy, _info = UscopeScene.is_image_too_noisy(target)
+        if option in cls.__cast_options and not is_img_noisy:
             target = target.astype(np.float64)  # universal cast for array manipulations
             if option == cls.__cast_options[0]:  # "neg.norm."
                 if np.min(target) < 0.0:
@@ -1001,12 +1003,12 @@ class UscopeScene:
                         target /= np.abs(np.min(target))
                     return target
             elif option == cls.__cast_options[1]:  # "int8"
-                norm_neg_target = UscopeScene.cast_image(img)  # get normalized to [-1.0, 1.0] image by default
+                norm_neg_target = UscopeScene.cast_image(img, "neg.norm.")  # get normalized to [-1.0, 1.0] image
                 norm_neg_target *= np.iinfo(np.int8).max  # just use uniform transform to [-127.0, 127.0]
                 norm_neg_target = np.round(norm_neg_target, 0)  # prepare conversion to integer values
                 return norm_neg_target.astype(np.int8)
             elif option == cls.__cast_options[2]:  # "int16"
-                norm_neg_target = UscopeScene.cast_image(img)  # get normalized to [-1.0, 1.0] image by default
+                norm_neg_target = UscopeScene.cast_image(img, "neg.norm.")  # get normalized to [-1.0, 1.0] image
                 norm_neg_target *= np.iinfo(np.int16).max  # just use uniform transform to [-32767.0, 32767.0]
                 norm_neg_target = np.round(norm_neg_target, 0)  # prepare conversion to integer values
                 return norm_neg_target.astype(np.int16)
@@ -1024,8 +1026,58 @@ class UscopeScene:
 
             else:
                 return None
-        else:
+        elif option not in cls.__cast_options:
             raise ValueError(f"\nProvided option '{option}' not found among the supported options: {cls.__cast_options}")
+        elif is_img_noisy:
+            warnings.warn("\nImage is either flat (constant) or contains only noise. Default (dtype) conversion used. Check report:\n{_info}")
+            return None
+
+    @staticmethod
+    def is_image_too_noisy(img: np.ndarray) -> Tuple[bool, str]:
+        """
+        Check if the provided image contains some signal or just noise.
+
+        Parameters
+        ----------
+        img : np.ndarray
+            Target image.
+
+        Returns
+        -------
+        Tuple[bool, str]
+            First flag True, if image is defined as containing noise only, second - report about defined reason.
+
+        """
+        target = img.copy().astype(np.float64); minp = np.min(target); _report = ""; _image_too_noisy = False; snr = 0.0
+        if minp < 0.0:
+            target += minp  # make all pixels non-negative
+        # Automatically define absolute minimal pixel value empirically
+        max_p6 = np.max(np.round(target, 6)); max_p9 = np.max(np.round(target, 9))
+        if max_p6 > 0.0:
+            abs_min_pixel_value = 1E-6
+        elif max_p9 > 0.0:
+            abs_min_pixel_value = 1E-9
+        else:
+            abs_min_pixel_value = 1E-12
+        p1, p99 = np.percentile(target, [1, 99]); pixels_spread = p99 - p1  # estimates pixel amplitude
+        if p99 >= abs_min_pixel_value:
+            mad = np.median(np.abs(target - np.median(target))); sigma = 1.4826*mad  # estimates standard deviation based on MAD
+            if sigma > 0.0:
+                snr = pixels_spread / sigma  # estimates SNR of an image
+            else:
+                if pixels_spread > 0:
+                    p25, p75 = np.percentile(target, [25, 75]); sigma =  p75 - p25 / 1.349  # use interquantile estimation of sigma
+                    if sigma > 0.0:
+                        snr = pixels_spread / sigma  # estimates SNR of an image
+                    else:
+                        snr = pixels_spread / abs_min_pixel_value    # will produce huge SNR
+        if p99 < abs_min_pixel_value:
+            _report = f"99% Percentile in image ({p99}) is less than abs. min. pixel value({abs_min_pixel_value})"
+            _image_too_noisy = True
+        elif snr < 5.0:
+            _report = f"Estimated SNR ({round(snr, 1)}) estimated is less than 5.0, noise prevails over signal or there is no signal"
+            _image_too_noisy = True
+        return _image_too_noisy, _report
 
 
 # %% Object class definition
