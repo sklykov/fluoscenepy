@@ -960,7 +960,7 @@ class UscopeScene:
 
     # %% Image casting
     @classmethod
-    def cast_image(cls, img: np.ndarray, option: str = "norm") -> Union[np.ndarray, None]:
+    def cast_image(cls, img: np.ndarray, option: str = "norm", suppress_warnings: bool = False) -> np.ndarray:
         """
         Cast an input image if only it contains some meaningful signal (SNR >= 5.0), not just noise or being flat (constant) image.
 
@@ -968,23 +968,29 @@ class UscopeScene:
         ----------
         img : np.ndarray\n
             Input image as numpy array with real dtype.\n
-        option : str\n
+        option : str, Optional\n
             One of the options: 'neg.norm.', 'int8', 'int16', where:\n
             'neg.norm.' - output np.float64 image normalized to [-1.0, 1.0] ('negative normalized'); \n
             'int8' - output np.int8 image rescaled to [-127, 127] (int8 plus max range in a sense: [-max, max]); \n
             'int16' - output np.int16 image rescaled to [-32767, 32767] (int16 plus max range in a sense: [-max, max]) \n
             'norm' - output np.float64, performs: (1) making all pixels non-negative, (2) normalization if max pixel > 1.0 by dividing by it\n
+        suppress_warnings : bool, Optional\n
+            If True, this method won't throw any UserWarning, in particular about detected too noisy or flat image requested to be converted.\n
+
+        Raise
+        -----
+        ValueError
+            If the provided option not found in a list of available cast options.\n
 
         Returns
         -------
-        np.ndarray or None\n
-            Converted image or None if some exception occurs / detected.\n
+        np.ndarray\n
+            Converted image.\n
         """
-        target = img.copy(); orig_dtype = img.dtype  # not operating on an input image as a reference
+        target = img.copy().astype(np.float64); orig_dtype = img.dtype  # not operating on an input image as a reference
         option = option.replace(" ", "")  # prevent mistakes in typing, like "neg. norm."
         is_img_noisy, _info = UscopeScene.is_image_too_noisy(target)
         if option in cls.__cast_options and not is_img_noisy:
-            target = target.astype(np.float64)  # universal cast for array manipulations
             if option == cls.__cast_options[0]:  # "neg.norm."
                 if np.min(target) < 0.0:
                     # Following logic applied: [-2.0, 0.0, 0.8] -> [-1.0, 0.0, 0.4] - not scaled to [-1.0, 1.0] but normalized to [-1.0, 1.0]
@@ -1020,17 +1026,30 @@ class UscopeScene:
                 if max_pixel > 1.0:  # so, normalize only when values aren't in a range [0.0, 1.0] already
                     target /= max_pixel
                 return target
-            elif option == cls.__cast_options[4]:
+            elif option == cls.__cast_options[4]:  # "uint8"
                 if orig_dtype is np.floating:  # original image has some float type
                     pass
-
-            else:
-                return None
         elif option not in cls.__cast_options:
             raise ValueError(f"\nProvided option '{option}' not found among the supported options: {cls.__cast_options}")
         elif is_img_noisy:
-            warnings.warn("\nImage is either flat (constant) or contains only noise. Default (dtype) conversion used. Check report:\n{_info}")
-            return None
+            _convers = ""  # store performed conversion method
+            # conversion strategy: round, clipping all excesive values for any integer conversion
+            if option in [cls.__cast_options[1], cls.__cast_options[2], cls.__cast_options[4]]:
+                target = np.round(target)  # round for any integer conversion first
+            if option == cls.__cast_options[1]:   # "int8"
+                target = np.clip(target, a_min=np.iinfo(np.int8).min, a_max=np.iinfo(np.int8).max); target = target.astype(np.int8)
+                _convers = "Rounded, clipped to int8 range, casted"
+            elif option == cls.__cast_options[2]:  # "int16"
+                target = np.clip(target, a_min=np.iinfo(np.int16).min, a_max=np.iinfo(np.int16).max); target = target.astype(np.int16)
+                _convers = "Rounded, clipped to int16 range, casted"
+            elif option == cls.__cast_options[4]:  # "uint8"
+                target = np.clip(target, a_min=np.iinfo(np.uint8).min, a_max=np.iinfo(np.uint8).max); target = target.astype(np.uint8)
+                _convers = "Rounded, clipped to uint8 range, casted"
+            else:
+                _convers = "Unchanged pixel values, casted to dtype=np.float64"
+            if not suppress_warnings:
+                warnings.warn(f"\nImage is either flat (constant) or contains only noise, report: \n{_info}.\nConversion used: {_convers}")
+            return target
 
     @staticmethod
     def is_image_too_noisy(img: np.ndarray) -> Tuple[bool, str]:
