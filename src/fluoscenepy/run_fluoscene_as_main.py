@@ -27,7 +27,7 @@ if str(root) not in sys.path:
 
 # Warning below should be ignored in the script context, since root path should be added before for the proper import
 import fluoscenepy.fluoscene  # for checking that this import resolves to a folder in a repository
-from fluoscenepy.fluoscene import force_precompilation, FluorObj, UscopeScene, clean_compilation_cache   # actual functionality for tests
+from fluoscenepy.fluoscene import precompile_fluoscene, FluorObj, UscopeScene, clean_fluoscene_cache   # actual functionality for tests
 
 print("Path to a project:", fluoscenepy.fluoscene.__file__, flush=True)
 actual_repo_imported = "site-packages" not in str(fluoscenepy.fluoscene.__file__)
@@ -36,7 +36,7 @@ actual_repo_imported = "site-packages" not in str(fluoscenepy.fluoscene.__file__
 if actual_repo_imported and __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_precise_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
-    test_cropped_shapes = True; test_put_objects = False; test_generate_objects = False; test_overall_gen = False; test_cast = False
+    test_cropped_shapes = True; test_put_objects = False; test_generate_objects = False; test_overall_gen = False; test_cast = True
     test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = False; test_various_noises = False
     shifts = (-0.2, 0.44); test_cropping_shifted_circles = False; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
     test_compiling_acceleration = True  # testing the acceleration through compilation using numba
@@ -182,7 +182,7 @@ if actual_repo_imported and __name__ == "__main__":
         objel3 = FluorObj(shape_type='ellipse', typical_size=(4.8, 3.3, np.pi/6), center_shifts=shifts_sample)
         objel3.get_shape(); objel3.plot_shape()
     if prepare_scene_samples:
-        force_precompilation()  # forcing precompilation by numba
+        precompile_fluoscene()  # forcing precompilation by numba
         samples1 = UscopeScene.get_random_objects(mean_size=(9.5, 8.0), size_std=(1.15, 0.82), shapes='mixed', intensity_range=(186, 254),
                                                   n_objects=25, verbose_info=True, accelerated=True)
         scene_s = UscopeScene(width=104, height=92)
@@ -195,7 +195,7 @@ if actual_repo_imported and __name__ == "__main__":
             io.imsave(Path.home().joinpath("Scene_with_noise.png"), scene_s.image)
     # Testing acceleration by using numba compilation in the imported module
     if test_compiling_acceleration:
-        force_precompilation()  # force precompilation of functions by numba
+        precompile_fluoscene()  # force precompilation of functions by numba
         # Computing discrete round shape with the attempt to accelerate computation by using numba compilation in the module
         t_ov_1 = time.perf_counter(); objs10 = FluorObj(typical_size=12.0); objs10.get_shape(accelerated=True); objs10.plot_shape()
         elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
@@ -259,11 +259,12 @@ if actual_repo_imported and __name__ == "__main__":
         scene = UscopeScene(width=267, height=232, image_type=np.uint16)
         objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(0, 4094), n_objects=14, image_type=scene.img_type)
         objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(mean_g=200); scene.show_scene()
-        img_neg_norm = UscopeScene.cast_image(scene.image); img_int8 = UscopeScene.cast_image(scene.image, option='int8')
-        img_int16 = UscopeScene.cast_image(scene.image, option='int16')
+        img_neg_norm = UscopeScene.cast_image(scene.image, "neg.norm."); img_int8 = UscopeScene.cast_image(scene.image, option='int8')
+        img_int16 = UscopeScene.cast_image(scene.image, option='int16'); img_norm = UscopeScene.cast_image(scene.image)
+        img_uint8 = UscopeScene.cast_image(scene.image, option='uint8')
 
     if test_cleaning_compilation_cache:
-        print("Local cache cleaned:", clean_compilation_cache())
+        print("Local cache cleaned:", clean_fluoscene_cache())
 
     plt.show()
 

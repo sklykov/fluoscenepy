@@ -64,7 +64,7 @@ class UscopeScene:
     denoised_image: Optional[np.ndarray] = None  # keep copy of an initial, free from noise image
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
     __round_fl_obj = None; __ellipse_fl_obj = None  # placeholders for classes used for precompilation of methods by numba
-    __cast_options: list = ["neg.norm.", "int8", "int16", "norm", "uint8"]  # short identifiers for the supported casting options
+    __cast_options: list = ["neg.norm.", "int8", "int16", "norm", "uint8", "uint16"]  # short identifiers for the supported casting options
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
                  numba_precompile: bool = True):
@@ -987,26 +987,29 @@ class UscopeScene:
         np.ndarray\n
             Converted image.\n
         """
-        target = img.copy().astype(np.float64); orig_dtype = img.dtype  # not operating on an input image as a reference
+        target = img.copy().astype(np.float64)  # not operating on an input image as a reference
         option = option.replace(" ", "")  # prevent mistakes in typing, like "neg. norm."
         is_img_noisy, _info = UscopeScene.is_image_too_noisy(target)
         if option in cls.__cast_options and not is_img_noisy:
             if option == cls.__cast_options[0]:  # "neg.norm."
-                if np.min(target) < 0.0:
+                minp = np.min(target); maxp = np.max(target)
+                if minp < 0.0:
                     # Following logic applied: [-2.0, 0.0, 0.8] -> [-1.0, 0.0, 0.4] - not scaled to [-1.0, 1.0] but normalized to [-1.0, 1.0]
-                    if np.abs(np.min(target)) > np.abs(np.max(target)):
-                        target /= np.abs(np.min(target))
-                    else:
-                        target /= np.abs(np.max(target))
+                    minpa = np.abs(minp); maxpa = np.abs(maxp)
+                    if minpa > maxpa and minpa > 1.0:
+                        target /= minpa
+                    elif maxpa > minpa and maxpa > 1.0:
+                        target /= maxpa
                     return target
                 else:
-                    target -= 0.5*np.max(target)  # shift image from [0.0 ... max] to [-0.5 max, 0.5 max]
-                    target /= np.max(target)  # should normalize target to [-1.0, 1.0]
+                    target -= 0.5*maxp  # shift image from [0.0 ... max] to [-0.5*max, 0.5*max]
+                    maxp = np.max(target)
+                    if maxp > 1.0:
+                        target /= maxp # should normalize target to [-1.0, 1.0]
                     # Check that pixel values are within the range
-                    if np.max(target) > 1.0:
-                        target /= np.max(target)
-                    if np.min(target) < -1.0:
-                        target /= np.abs(np.min(target))
+                    minp = np.min(target)
+                    if minp < -1.0:
+                        target /= np.abs(minp)
                     return target
             elif option == cls.__cast_options[1]:  # "int8"
                 norm_neg_target = UscopeScene.cast_image(img, "neg.norm.")  # get normalized to [-1.0, 1.0] image
@@ -1027,14 +1030,20 @@ class UscopeScene:
                     target /= max_pixel
                 return target
             elif option == cls.__cast_options[4]:  # "uint8"
-                if orig_dtype is np.floating:  # original image has some float type
-                    pass
+                norm_target = UscopeScene.cast_image(img, "norm")  # unified logic for normalizing image to [0.0, 1.0] range
+                norm_target *= np.iinfo(np.uint8).max  # just use uniform transform to [0.0, 255.0]
+                norm_target = np.round(norm_target, 0)
+                return norm_target.astype(np.uint8)
+            elif option == cls.__cast_options[5]:  # "uint16"
+                norm_target = UscopeScene.cast_image(img, "norm"); norm_target *= np.iinfo(np.uint16).max
+                norm_target = np.round(norm_target, 0)
+                return norm_target.astype(np.uint16)
         elif option not in cls.__cast_options:
             raise ValueError(f"\nProvided option '{option}' not found among the supported options: {cls.__cast_options}")
         elif is_img_noisy:
             _convers = ""  # store performed conversion method
             # conversion strategy: round, clipping all excesive values for any integer conversion
-            if option in [cls.__cast_options[1], cls.__cast_options[2], cls.__cast_options[4]]:
+            if option in [cls.__cast_options[1], cls.__cast_options[2], cls.__cast_options[4], cls.__cast_options[5]]:
                 target = np.round(target)  # round for any integer conversion first
             if option == cls.__cast_options[1]:   # "int8"
                 target = np.clip(target, a_min=np.iinfo(np.int8).min, a_max=np.iinfo(np.int8).max); target = target.astype(np.int8)
@@ -1045,6 +1054,9 @@ class UscopeScene:
             elif option == cls.__cast_options[4]:  # "uint8"
                 target = np.clip(target, a_min=np.iinfo(np.uint8).min, a_max=np.iinfo(np.uint8).max); target = target.astype(np.uint8)
                 _convers = "Rounded, clipped to uint8 range, casted"
+            elif option == cls.__cast_options[5]:  # "uint16"
+                target = np.clip(target, a_min=np.iinfo(np.uint16).min, a_max=np.iinfo(np.uint16).max); target = target.astype(np.uint16)
+                _convers = "Rounded, clipped to uint16 range, casted"
             else:
                 _convers = "Unchanged pixel values, casted to dtype=np.float64"
             if not suppress_warnings:
@@ -1612,12 +1624,12 @@ class FluorObj:
 
 
 # %% Overall utility functions
-def force_precompilation():
+def precompile_fluoscene():
     """
-    Force compilation of computing functions for round and ellipse 'precise' shaped objects.
+    Force compilation of computing functions for round and ellipse 'precise'-shaped objects in FluorObj class by 'numba' library.
 
-    Compilation accelerates only functions of shape calculation, not placing objects on a scene.\n
-    Compilation results are cached and stored on a local drive by numba library automatically, so it's enough to call this function once.
+    Note that compilation accelerates only functions of shape calculation, not placing objects on a scene.\n
+    Compilation results are cached and stored on a local drive by 'numba' automatically, so it's enough to call this function once.\n
 
     Returns
     -------
@@ -1631,7 +1643,7 @@ def force_precompilation():
         __warn_message = "\nAcceleration isn't possible because 'numba' library not installed in the current environment"
         warnings.warn(__warn_message)
 
-def clean_compilation_cache() -> bool:
+def clean_fluoscene_cache() -> bool:
     """
     Clean local cache files created by numba after compilation of computation methods.
 
@@ -1657,4 +1669,4 @@ def clean_compilation_cache() -> bool:
     return _local_cache_cleaned
 
 # %% Define default export classes and methods used with import * statement (import * from fluoscenepy)
-__all__ = ['UscopeScene', 'FluorObj', 'force_precompilation', 'clean_compilation_cache']
+__all__ = ['UscopeScene', 'FluorObj', 'precompile_fluoscene', 'clean_fluoscene_cache']
