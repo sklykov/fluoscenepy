@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 
 if __name__ != "__main__":
-    from ..fluoscene import UscopeScene, FluorObj
+    from ..fluoscene import UscopeScene, FluorObj, precompile_fluoscene, clean_fluoscene_cache, numba_installed
     from ..utils.comp_funcs import get_radius_gaussian, get_ellipse_sizes
 
 
@@ -189,7 +189,7 @@ def test_radiuses_generation():
         assert r >= 0.5, f"Generated r < 0.5: {round(r, 3)}"
         a, b, angle = get_ellipse_sizes(mean_size=(3.0, 2.0), size_std=(2.0, 1.0))
         r_min = min(a, b); r_max = max(a, b)
-        assert r_min > 1.0 and r_max > 1.5, f"Sizes for ellipse {a, b} less smallest values"
+        assert r_min > 1.0 and r_max > 1.5, f"Sizes for ellipse {a, b} less than smallest acceptable values"
 
 
 def test_cast_images():
@@ -202,8 +202,8 @@ def test_cast_images():
 
     """
     scene = UscopeScene(width=267, height=232, image_type=np.uint16)
-    objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(0, 4094), n_objects=14, image_type=scene.img_type)
-    objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(mean_g=200); scene.show_scene()
+    objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(15, 4090), n_objects=14, image_type=scene.img_type)
+    objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise()
     img_neg_norm = UscopeScene.cast_image(scene.image, option="neg.norm.")
     assert np.min(img_neg_norm) == -1.0 and np.max(img_neg_norm) == 1.0, "Image casting ('cast_image') to range [-1.0, 1.0] has a problem"
     img_int8 = UscopeScene.cast_image(scene.image, option='int8'); int8min = np.iinfo(np.int8).min; int8max = np.iinfo(np.int8).max
@@ -211,3 +211,29 @@ def test_cast_images():
     img_int16 = UscopeScene.cast_image(scene.image, option='int16'); int16max = np.iinfo(np.int16).max; int16min = np.iinfo(np.int16).min
     assert np.min(img_int16) >= int16min and np.max(img_int16) == int16max, (f"Image casting ('cast_image') to int16 range [-{int16max}, "
                                                                              + f"{int16max}] has a problem")
+    # More complex check below: int8 image -> uint8
+    img_uint8 = UscopeScene.cast_image(img_int8, option="uint8"); maxp = np.max(img_uint8); img_type = img_uint8.dtype
+    assert maxp == 255 and img_type == np.uint8, f"Image casting to uint8 has a problem, output image has: {maxp}, {img_type}"
+    # More complex check below: int16 image -> float64 normalized
+    img_norm = UscopeScene.cast_image(img_int16, option="norm"); maxp = np.max(img_norm); img_type = img_norm.dtype
+    assert maxp <= 1.0 and img_type == np.float64, f"Normalization of image has a problem, output image has: {maxp}, {img_type}"
+    rng = np.random.default_rng(); noisy_img = (rng.random(size=(156, 121)) - 0.5)*1E-3  # special shifted noisy image
+    with pytest.warns(UserWarning) as record:
+        UscopeScene.cast_image(noisy_img)
+    assert len(record) == 1, "Expected UserWarning about noisy image not thrown"
+    w = list(record)[0]  # bypass some error with not iterable complain
+    assert "noise prevails over signal" in str(w.message), "UserWarning doesn't contain the phrase 'noise prevails over signal'"
+
+
+def test_compilation():
+    """
+    Test functions for numba compilation of computing methods and cleaning of numba compiled cache.
+
+    Returns
+    -------
+    None.
+
+    """
+    if numba_installed:
+        precompile_fluoscene()  # shouldn't produce any UserWarning if flag is already set
+        assert clean_fluoscene_cache(), "Cache not cleaned, check printouts"

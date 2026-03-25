@@ -1024,7 +1024,7 @@ class UscopeScene:
             elif option == cls.__cast_options[3] or option == (cls.__cast_options[3] + "."):  # "norm" or "norm."
                 min_pixel = np.min(target)
                 if min_pixel < 0.0:  # shift all pixel values to make them non-negative and check that max pixel allows normalization
-                    target += min_pixel
+                    target += np.abs(min_pixel)
                 max_pixel = np.max(target)
                 if max_pixel > 1.0:  # so, normalize only when values aren't in a range [0.0, 1.0] already
                     target /= max_pixel
@@ -1047,20 +1047,27 @@ class UscopeScene:
                 target = np.round(target)  # round for any integer conversion first
             if option == cls.__cast_options[1]:   # "int8"
                 target = np.clip(target, a_min=np.iinfo(np.int8).min, a_max=np.iinfo(np.int8).max); target = target.astype(np.int8)
-                _convers = "Rounded, clipped to int8 range, casted"
+                _convers = "Rounded, clipped to int8 range, casted to int8"
             elif option == cls.__cast_options[2]:  # "int16"
                 target = np.clip(target, a_min=np.iinfo(np.int16).min, a_max=np.iinfo(np.int16).max); target = target.astype(np.int16)
-                _convers = "Rounded, clipped to int16 range, casted"
+                _convers = "Rounded, clipped to int16 range, casted to int16"
             elif option == cls.__cast_options[4]:  # "uint8"
                 target = np.clip(target, a_min=np.iinfo(np.uint8).min, a_max=np.iinfo(np.uint8).max); target = target.astype(np.uint8)
-                _convers = "Rounded, clipped to uint8 range, casted"
+                _convers = "Rounded, clipped to uint8 range, casted to uint8"
             elif option == cls.__cast_options[5]:  # "uint16"
                 target = np.clip(target, a_min=np.iinfo(np.uint16).min, a_max=np.iinfo(np.uint16).max); target = target.astype(np.uint16)
-                _convers = "Rounded, clipped to uint16 range, casted"
+                _convers = "Rounded, clipped to uint16 range, casted to uint16"
+            elif option == cls.__cast_options[3] or option == (cls.__cast_options[3] + "."):  # "norm"
+                minp = np.min(target)
+                if minp < 0.0:
+                    target += np.abs(minp); _convers = "Shifted by abs(min_pixel), casted to np.float64"
+                else:
+                    _convers = "Unchanged pixel values, casted to np.float64"
             else:
-                _convers = "Unchanged pixel values, casted to dtype=np.float64"
+                _convers = "Unchanged pixel values, casted to np.float64"
             if not suppress_warnings:
-                warnings.warn(f"\nImage is either flat (constant) or contains only noise, report: \n{_info}.\nConversion used: {_convers}")
+                _warn = f"\nImage is either flat (constant) or contains only noise, report: \n{_info}.\nConversion used: {_convers}"
+                warnings.warn(_warn)
             return target
 
     @staticmethod
@@ -1081,7 +1088,7 @@ class UscopeScene:
         """
         target = img.copy().astype(np.float64); minp = np.min(target); _report = ""; _image_too_noisy = False; snr = 0.0
         if minp < 0.0:
-            target += minp  # make all pixels non-negative
+            target += np.abs(minp)  # make all pixels non-negative
         # Automatically define absolute minimal pixel value empirically
         max_p6 = np.max(np.round(target, 6)); max_p9 = np.max(np.round(target, 9))
         if max_p6 > 0.0:

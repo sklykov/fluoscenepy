@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 import numpy as np
 import time
+import warnings
 
 # Explicit backend assignment for matplotlib - for compatibility between running configurations in Spyder and PyCharm IDEs
 import matplotlib
@@ -26,27 +27,27 @@ if str(root) not in sys.path:
     sys.path.insert(0, str(root))  # append to the start path to a root folder of a repo for correct import in a session
 
 # Warning below should be ignored in the script context, since root path should be added before for the proper import
-import fluoscenepy.fluoscene  # for checking that this import resolves to a folder in a repository
+import fluoscenepy.fluoscene as fs  # for checking that this import resolves to a folder in a repository
 from fluoscenepy.fluoscene import precompile_fluoscene, FluorObj, UscopeScene, clean_fluoscene_cache   # actual functionality for tests
 
-print("Path to a project:", fluoscenepy.fluoscene.__file__, flush=True)
-actual_repo_imported = "site-packages" not in str(fluoscenepy.fluoscene.__file__)
+print("Path to a project:", fs.__file__, flush=True); actual_repo_imported = "site-packages" not in str(fs.__file__)
 
 # %% Actual tests
 if actual_repo_imported and __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_precise_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
-    test_cropped_shapes = True; test_put_objects = False; test_generate_objects = False; test_overall_gen = False; test_cast = True
+    test_cropped_shapes = True; test_put_objects = False; test_generate_objects = False; test_overall_gen = False
     test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = False; test_various_noises = False
     shifts = (-0.2, 0.44); test_cropping_shifted_circles = False; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
-    test_compiling_acceleration = True  # testing the acceleration through compilation using numba
+    test_compiling_acceleration = False  # testing the acceleration through compilation using numba
     test_placing_circles = False  # testing speed up placing algorithm
     prepare_centered_docs_images = False  # for making centered sample images for preparing Readme file about this project
     prepare_shifted_docs_images = False; shifts_sample = (0.24, 0.0)  # for making shifted sample images for preparing Readme
     prepare_scene_samples = False  # for preparing illustrative scenes with placed on them objects
     prepare_favicon_img = False; prepare_large_favicon_img = False  # generate picture with dense round objects
     test_add_noise_ext_img = False  # testing of adding noise to an external image
-    test_cleaning_compilation_cache = True  # can be checked if local numba cache cleaned
+    test_cleaning_compilation_cache = False  # can be checked if local numba cache cleaned
+    test_cast = True; check_warning = True  # casting images from different source to different data types
 
     # Check if skimage (not included in the project's dependencies) is installed and set the flag for using it for saving generated images
     saving_possible = True
@@ -257,11 +258,18 @@ if actual_repo_imported and __name__ == "__main__":
 
     if test_cast:
         scene = UscopeScene(width=267, height=232, image_type=np.uint16)
-        objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(0, 4094), n_objects=14, image_type=scene.img_type)
-        objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(mean_g=200); scene.show_scene()
+        objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(15, 4090), n_objects=14, image_type=scene.img_type)
+        objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(); scene.show_scene()
         img_neg_norm = UscopeScene.cast_image(scene.image, "neg.norm."); img_int8 = UscopeScene.cast_image(scene.image, option='int8')
-        img_int16 = UscopeScene.cast_image(scene.image, option='int16'); img_norm = UscopeScene.cast_image(scene.image)
-        img_uint8 = UscopeScene.cast_image(scene.image, option='uint8')
+        img_int16 = UscopeScene.cast_image(scene.image, option='int16'); img_norm = UscopeScene.cast_image(img_int8)
+        img_uint8 = UscopeScene.cast_image(img_int16, option='uint8'); img_uint16 = UscopeScene.cast_image(img_neg_norm, option='uint16')
+        rng = np.random.default_rng()
+        noisy_img = (rng.random(size=(156, 121)) - 0.5)*1E-3  # just noisy image shifted to (-0.5, 0.5) and scaled to small values
+        if check_warning:
+            norm_noisy_img = UscopeScene.cast_image(noisy_img)  # should normally generate a warning of caught noisy image
+        else:
+            with warnings.catch_warnings():  # context manager for collecting Warnings based on rule below
+                warnings.simplefilter("ignore", UserWarning); norm_noisy_img = UscopeScene.cast_image(noisy_img)
 
     if test_cleaning_compilation_cache:
         print("Local cache cleaned:", clean_fluoscene_cache())
