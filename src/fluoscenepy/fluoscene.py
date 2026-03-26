@@ -156,7 +156,7 @@ class UscopeScene:
 
         Returns
         -------
-        tuple
+        tuple \n
             Packed instances of FluorObj() class with the generated objects.
 
         """
@@ -247,7 +247,7 @@ class UscopeScene:
 
         Returns
         -------
-        tuple
+        tuple \n
             Packed instances of FluorObj() class with the generated objects.
 
         """
@@ -410,7 +410,7 @@ class UscopeScene:
 
         Returns
         -------
-        tuple
+        tuple \n
             With the placed objects.
 
         """
@@ -913,7 +913,7 @@ class UscopeScene:
 
         Returns
         -------
-        noisy_image : np.ndarray\n
+        noisy_image : np.ndarray \n
             With the type as the input image.\n
 
         """
@@ -973,12 +973,16 @@ class UscopeScene:
             'neg.norm.' - output np.float64 image normalized to [-1.0, 1.0] ('negative normalized'); \n
             'int8' - output np.int8 image rescaled to [-127, 127] (int8 plus max range in a sense: [-max, max]); \n
             'int16' - output np.int16 image rescaled to [-32767, 32767] (int16 plus max range in a sense: [-max, max]) \n
-            'norm' - output np.float64, performs: (1) making all pixels non-negative, (2) normalization if max pixel > 1.0 by dividing by it\n
+            'norm' - output np.float64, performs: (1) making all pixels non-negative, \n
+                    (2) normalization if max pixel > 1.0 by dividing by it\n
+            'uint8' - (1) make normalization to [0.0, 1.0] if it is possible, (2) scale to max uint8 value (255)\n
+            'uint16' - (1) make normalization to [0.0, 1.0] if it is possible, (2) scale to max uint16 value (65535)\n
+
         suppress_warnings : bool, Optional\n
             If True, this method won't throw any UserWarning, in particular about detected too noisy or flat image requested to be converted.\n
 
-        Raise
-        -----
+        Raises
+        ------
         ValueError
             If the provided option not found in a list of available cast options.\n
 
@@ -1005,7 +1009,7 @@ class UscopeScene:
                     target -= 0.5*maxp  # shift image from [0.0 ... max] to [-0.5*max, 0.5*max]
                     maxp = np.max(target)
                     if maxp > 1.0:
-                        target /= maxp # should normalize target to [-1.0, 1.0]
+                        target /= maxp  # should normalize target to [-1.0, 1.0]
                     # Check that pixel values are within the range
                     minp = np.min(target)
                     if minp < -1.0:
@@ -1042,7 +1046,7 @@ class UscopeScene:
             raise ValueError(f"\nProvided option '{option}' not found among the supported options: {cls.__cast_options}")
         elif is_img_noisy:
             _convers = ""  # store performed conversion method
-            # conversion strategy: round, clipping all excesive values for any integer conversion
+            # conversion strategy: round, clipping all excessive values for any integer conversion
             if option in [cls.__cast_options[1], cls.__cast_options[2], cls.__cast_options[4], cls.__cast_options[5]]:
                 target = np.round(target)  # round for any integer conversion first
             if option == cls.__cast_options[1]:   # "int8"
@@ -1068,7 +1072,7 @@ class UscopeScene:
             if not suppress_warnings:
                 _warn = f"\nImage is either flat (constant) or contains only noise, report: \n{_info}.\nConversion used: {_convers}"
                 warnings.warn(_warn)
-            return target
+        return target
 
     @staticmethod
     def is_image_too_noisy(img: np.ndarray) -> Tuple[bool, str]:
@@ -1077,12 +1081,12 @@ class UscopeScene:
 
         Parameters
         ----------
-        img : np.ndarray
+        img : np.ndarray \n
             Target image.
 
         Returns
         -------
-        Tuple[bool, str]
+        Tuple[bool, str] \n
             First flag True, if image is defined as containing noise only, second - report about defined reason.
 
         """
@@ -1104,7 +1108,7 @@ class UscopeScene:
                 snr = pixels_spread / sigma  # estimates SNR of an image
             else:
                 if pixels_spread > 0:
-                    p25, p75 = np.percentile(target, [25, 75]); sigma =  p75 - p25 / 1.349  # use interquantile estimation of sigma
+                    p25, p75 = np.percentile(target, [25, 75]); sigma = p75 - p25 / 1.349  # use interquantile estimation of sigma
                     if sigma > 0.0:
                         snr = pixels_spread / sigma  # estimates SNR of an image
                     else:
@@ -1121,7 +1125,7 @@ class UscopeScene:
 # %% Object class definition
 class FluorObj:
     """
-    Modelling the fluorescent bright object with the specified type.
+    Modeling the fluorescent bright object with the specified type.
 
     It can be used for embedding it to the 'UscopeScene' class for building up the microscopic image.
 
@@ -1306,7 +1310,8 @@ class FluorObj:
 
         Returns
         -------
-        2D shape of the object (intensity representation).
+        np.ndarray | None \n
+            2D shape of the object (intensity representation).
 
         """
         if center_shifts is not None and len(center_shifts) == 2:
@@ -1650,14 +1655,15 @@ def precompile_fluoscene():
         __warn_message = "\nAcceleration isn't possible because 'numba' library not installed in the current environment"
         warnings.warn(__warn_message)
 
+
 def clean_fluoscene_cache() -> bool:
     """
     Clean local cache files created by numba after compilation of computation methods.
 
     Returns
     -------
-    bool
-        Flag if local cache is assumed to be cleaned.
+    bool \n
+        Flag if local cache is assumed (at least 5 cached files successfully removed) to be cleaned.
 
     """
     _local_cache_cleaned = False  # flag to show that local numba cache found and has been cleaned
@@ -1670,10 +1676,11 @@ def clean_fluoscene_cache() -> bool:
                     try:
                         obj.unlink(missing_ok=True); _n_cleaned += 1
                     except (PermissionError, OSError):
-                        _n_cleaned = 0; break  # automatucally breaks loop assuming that invalid permission is universal
+                        _n_cleaned = 0; break  # automatically breaks loop assuming that invalid permission is universal
             if _n_cleaned >= 5:  # 5 - minimal count of caches created by numba, assume that cache is cleaned if no error encountered
                 _local_cache_cleaned = True
     return _local_cache_cleaned
+
 
 # %% Define default export classes and methods used with import * statement (import * from fluoscenepy)
 __all__ = ['UscopeScene', 'FluorObj', 'precompile_fluoscene', 'clean_fluoscene_cache']

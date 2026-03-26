@@ -119,11 +119,11 @@ because of the slow nested for loops for calculating each pixel which is partial
 To speed up the calculations, one can install the [numba](https://numba.pydata.org/) library in the same Python environment
 and provide the according flags in calculation methods, similar to the following code snippets.    
 **PLEASE NOTE:** it has been revealed during tests that the required ***numba*** version should be **>=0.57.1** 
-(tested and verified for versions: 0.57.1 and 0.60.0).
+(tested and verified for versions: 0.64.0 - most recent for Python 3.11 and 3.12 on 26-03-2026).
 ````python
 import numpy as np
-from fluoscenepy import FluorObj, force_precompilation
-force_precompilation()   # force pre-compilation of computational functions by numba
+from fluoscenepy import FluorObj, precompile_fluoscene, clean_fluoscene_cache
+precompile_fluoscene()  # force pre-compilation of computational functions by numba
 # Round shape object generation
 r_obj_acc = FluorObj(typical_size=12.0)
 r_obj_acc.get_shape(accelerated=True)  # takes ~ 0.7 - 1 sec 
@@ -134,6 +134,7 @@ el_obj_acc = FluorObj(shape_type='ellipse', typical_size=(7.5, 6.0, np.pi/3))
 el_obj_acc.get_shape(accelerated=True)  # takes ~ 1.1 - 1.8 sec 
 el_obj = FluorObj(shape_type='ellipse', typical_size=(7.5, 6.0, np.pi/3))
 el_obj.get_shape()  # takes ~ 3.6 - 5.7 sec 
+clean_fluoscene_cache()  # optional cleaning saved by numba cached, compiled artifacts
 ````
 
 ### Acceleration of objects generation and placing 
@@ -166,3 +167,12 @@ When both the 'overlapping' and 'touching' flags are set to False, the algorithm
 to ensure that no two objects overlap or touch during random placement. For relatively large objects, this 
 verification can significantly increase processing time, potentially taking several minutes for the placement 
 of a single object.
+
+### Casting of images
+The target image (2D numpy array) can be cast or transformed with various possible options: "neg.norm.", "int8", "int16",
+"norm", "uint8", "uint16". All conversion implies that the input image contains some signal (not only noise presented 
+or the image is flat - contains mostly same pixel values). Check autoreport formed after calling ***cast_image(...)*** method.
+
+### Compatibility with numpy >= 2.0.0
+Even though all tests have been passed for the latest on 26-03-2026 numpy ver. 2.4.3, please create an issue if something
+turns not compatible with the latest versions of numpy.
