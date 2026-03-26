@@ -20,27 +20,27 @@ except (ModuleNotFoundError, ImportError):
 # Add the main script to the sys path for importing
 root_dir = Path(__file__).parent.parent; main_script_path = str(root_dir.absolute())
 if main_script_path not in sys.path:
-    sys.path.append(main_script_path)
+    sys.path.insert(0, main_script_path)
 # Import script directly from added absolute path
 if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
-    from fluoscene import UscopeScene, force_precompilation
+    from fluoscenepy.fluoscene import precompile_fluoscene, UscopeScene
 
 # %% Parameters - flags for making studies
-check_uncompiled_generation_performance = False  # checked
-check_globally_precompiled_methods = False  # checked
-check_compiled_method_class = False  # checked
-check_placing_objects = False  # checked
-check_actual_objects_gen = False  # checked, both U8 and U16 images generation
+check_uncompiled_generation_performance = False  # checked for 0.0.5
+check_globally_precompiled_methods = False  # checked for 0.0.5
+check_compiled_method_class = False  # checked for 0.0.5
+check_placing_objects = True  # checked for 0.1.0
+check_actual_objects_gen = False  # checked for 0.0.5, both U8 and U16 images generation
 
 # %% Script run
 if __name__ == "__main__":
-    uscene = UscopeScene(width=200, height=180, image_type=np.uint16)
+    uscene = UscopeScene(width=182, height=158, image_type=np.uint16)
     # Check unaccelerated small particles generation
     if check_uncompiled_generation_performance:
         objs = uscene.get_random_objects(mean_size=4.0, size_std=0.25, intensity_range=(250, 255), n_objects=20, verbose_info=True)
     # Check how precompilation of methods globally accelerates the shapes generation
     if check_globally_precompiled_methods:
-        force_precompilation()
+        precompile_fluoscene()
         objs = uscene.get_random_objects(mean_size=4.0, size_std=0.25, intensity_range=(250, 255), n_objects=30, verbose_info=True,
                                          accelerated=True)  # for round objects: ~ 295-305 ms calculation
     # Check class-binded accelerated methods
@@ -52,7 +52,8 @@ if __name__ == "__main__":
                                        n_objects=15, verbose_info=True, shapes='mixed')
     # Check various conditions and acceleration of objects placing on scene
     if check_placing_objects:
-        objs4 = uscene.get_round_objects(mean_size=10.5, size_std=1.5, intensity_range=(250, 255), n_objects=40, image_type=np.uint16)
+        precompile_fluoscene()
+        objs4 = uscene.get_objects_acc(mean_size=14.2, size_std=3.1, intensity_range=(201, 255), n_objects=8, image_type=np.uint16)
         placed_objs4 = uscene.set_random_places(objs4, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
         uscene.put_objects_on(placed_objs4, save_only_objects_inside=True); plt.close('all'); uscene.show_scene()
     # Check generation with useful parameters

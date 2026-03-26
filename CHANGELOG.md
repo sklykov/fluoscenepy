@@ -4,12 +4,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).    
 
+# [0.1.0] - 2026-03-26
+First version for fixing API (functions / classes names).
+### Added
+- Function ***clean_fluoscene_cache()*** for deleting saved compiled by numba files; 
+- More tests for checking functionality of library methods ("test_fluoscene.py") for running by pytest.
+- More casting options for the static method ***UscopeScene.cast_image(...)***: "norm", "uint8", "uint16".
+- Checking by the method ***UscopeScene.cast_image(...)*** noise level / flatness (signal presence) in an image 
+before performing meaningful cast (avoid autoamplification of a noise by dividing on its max value).
+- Static method ***UscopeScene.is_image_too_noisy(...)*** that checks image content for presence of a signal.
+### Changed
+- Function name for pre-compilation by numba: ***force_precompilation()*** → ***precompile_fluoscene()***;
+- The method ***UscopeScene.cast_image(...)*** uses now by default casting to [0.0, 1.0] range ("norm");
+- Removed autotests on GitHub for Python 3.9, 3.10 and added tests for 3.12 and 3.12.
+
 ## [0.0.5] - 2025-11-03
 Checked for consistency with publications the order of adding to an image the Poisson and Gaussian types of noise.
 ### Added
 - "Gain" parameter for Poisson noising part of "noise2image" and "add_noise" methods of the ***UscopeScene** class.
 ### Changed
-- Arguments naming for "noise2image" and "add_noise" methods ("mean_noise" -> "mean_g", "sigma_noise" -> "sigma_g").
+- Arguments naming for "noise2image" and "add_noise" methods ("mean_noise" → "mean_g", "sigma_noise" → "sigma_g").
 - Docstrings for "noise2image" and "add_noise" methods.
 - "\_\_all\_\_" parameter specification (now checker should automatically recognize imports of classes).
 - Removed all pictures from package distributions files + case studies (remade MANIFEST.in file).

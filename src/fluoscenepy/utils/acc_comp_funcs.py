@@ -12,7 +12,7 @@ from typing import List, Tuple
 
 
 # %% Func. defs.
-@njit
+@njit(cache=True)
 def generate_coordinates_list(i_s: int, i_f: int, j_s: int, j_f: int) -> List[Tuple[int, int]]:
     """
     Generate list with indices in tuples within provided ranges.
@@ -37,7 +37,7 @@ def generate_coordinates_list(i_s: int, i_f: int, j_s: int, j_f: int) -> List[Tu
     return [(i_a, j_a) for i_a in range(i_s, i_f) for j_a in range(j_s, j_f)]
 
 
-@njit
+@njit(cache=True)
 def set_binary_mask_coordinates(binary_mask: np.ndarray, i_obj_start: int, i_obj_end: int, i_limit: int,
                                 j_obj_start: int, j_obj_end: int, j_limit: int) -> np.ndarray:
     """

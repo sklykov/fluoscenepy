@@ -15,7 +15,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.11", "3.12", "3.13"]
 
     steps:
       - name: Checkout code  # loads code from a repo
@@ -31,6 +31,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest
           pip install -e .
+
+      - name: Install numba (except for 3.8)
+        if: matrix.python-version != '3.8'
+        run: pip install numba
 
       - name: Run tests
         run: pytest

@@ -4,20 +4,12 @@ The "fluoscenepy" package is intended for simulation of a microscopic fluorescen
 
 @author: Sergei Klykov
 
-@licence: MIT, @year: 2025
+@licence: MIT, @year: 2026
 
 """
 
-__version__ = "0.0.5"  # Straightforward way of specifying package version and including it to the package attributes
+__version__ = "0.1.0"  # Straightforward way of specifying package version and including it to the package attributes
 
-if __name__ == "__main__":
-    __all__ = ['fluoscene']  # for specifying 'from fluoscenepy import *' if package imported from some script
-elif __name__ == "fluoscenepy":
-    pass  # do not add module "fluoscenepy" to __all__ attribute, because it demands to construct explicit path
-
-# Automatically bring the main class and some methods to the name space when one of import command is used commands:
-# 1) from fluoscenepy import UscopeScene, ... functions; 2) from fluoscenepy import *
-if __name__ != "__main__" and __name__ != "__mp_main__":
-    # Main classes, functions and variables auto export happened on the import call for this package
-    from .fluoscene import UscopeScene, FluorObj, force_precompilation
-    __all__ = ["UscopeScene", "FluorObj", "force_precompilation"]
+# Univesal logic for making all main classes and functions available after calling from project import*
+from .fluoscene import UscopeScene, FluorObj, precompile_fluoscene, clean_fluoscene_cache
+__all__ = ["UscopeScene", "FluorObj", "precompile_fluoscene", "clean_fluoscene_cache"]

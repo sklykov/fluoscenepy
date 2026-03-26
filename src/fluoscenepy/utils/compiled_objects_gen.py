@@ -22,7 +22,7 @@ except ModuleNotFoundError:
 
 
 # %% Utility functions for round shaped objects (simple one for achieving acceleration by using numba library compilation)
-@njit
+@njit(cache=True)
 def distance_f_acc(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float],
                    j_centre: Union[int, float]) -> Union[float, np.ndarray]:
     """
@@ -48,7 +48,7 @@ def distance_f_acc(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, 
     return np.round(np.sqrt(np.power(i_px - i_centre, 2) + np.power(j_px - j_centre, 2)), 6)
 
 
-@njit
+@njit(cache=True)
 def helper_calculations_bead(r: float, center_shifts: tuple) -> tuple:
     """
     Shift calculations to this function for compilation by numba.
@@ -151,7 +151,7 @@ def discrete_shaped_bead_acc(r: float, center_shifts: tuple) -> np.ndarray:
 
 
 # %% Utility functions for ellipse shaped objects (simple one for achieving acceleration by using numba library compilation)
-@njit
+@njit(cache=True)
 def ellipse_equation_acc(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float],
                          j_centre: Union[int, float], a: Union[int, float], b: Union[int, float], angle: Union[int, float]) -> float:
     """

@@ -4,26 +4,25 @@ Main script for the 'fluoscenepy' package.
 
 @author: Sergei Klykov, '@sklykov' on GitHub
 
-@licence: MIT, @year: 2025
+@licence: MIT, @year: 2026
 
 """
-# %% Global imports
+# %% Imports, module variables
 import random
 import time
 import warnings
+from typing import Union, Optional, Tuple
 from pathlib import Path
-from typing import Union, Optional
 from numbers import Real
-import matplotlib.pyplot as plt
 import numpy as np
+import logging
+import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, Ellipse
 
-# For compatibility between running configurations in Spyder and PyCharm IDEs
-import matplotlib
-try:
-    matplotlib.use('Qt5Agg')
-except ImportError:  # will be thrown in the environment doesn't contain Qt-like library
-    pass
+# Local imports from a local folders - unified relative imports - this script is used in a library (package) context
+from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
+from .utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
+                               get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list, set_binary_mask_coords_in_loop)
 
 # Flag for using numba for compilation of computation methods
 numba_installed = False
@@ -31,24 +30,13 @@ try:
     import numba
     if numba is not None:
         numba_installed = True
+        logging.getLogger('numba').setLevel(logging.WARNING)  # disable many DEBUG level logs caused by numba during compilation
 except ModuleNotFoundError:
     pass
 
-# %% Local (package-scoped) imports
-if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
-    from utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
-    from utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
-                                  get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list, set_binary_mask_coords_in_loop)
-    if numba_installed:
-        from utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
-        from utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
-else:
-    from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
-    from .utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
-                                   get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list, set_binary_mask_coords_in_loop)
-    if numba_installed:
-        from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
-        from .utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
+if numba_installed:
+    from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
+    from .utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
 
 
 # %% Scene (image) class def.
@@ -76,7 +64,7 @@ class UscopeScene:
     denoised_image: Optional[np.ndarray] = None  # keep copy of an initial, free from noise image
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
     __round_fl_obj = None; __ellipse_fl_obj = None  # placeholders for classes used for precompilation of methods by numba
-    __cast_options: list = ["neg.norm.", "int8", "int16"]
+    __cast_options: list = ["neg.norm.", "int8", "int16", "norm", "uint8", "uint16"]  # short identifiers for the supported casting options
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
                  numba_precompile: bool = True):
@@ -168,7 +156,7 @@ class UscopeScene:
 
         Returns
         -------
-        tuple
+        tuple \n
             Packed instances of FluorObj() class with the generated objects.
 
         """
@@ -259,7 +247,7 @@ class UscopeScene:
 
         Returns
         -------
-        tuple
+        tuple \n
             Packed instances of FluorObj() class with the generated objects.
 
         """
@@ -422,7 +410,7 @@ class UscopeScene:
 
         Returns
         -------
-        tuple
+        tuple \n
             With the placed objects.
 
         """
@@ -619,16 +607,12 @@ class UscopeScene:
                             # Exclude placed object from binary placement mask
                             if not numba_installed:
                                 self.__binary_placement_mask = set_binary_mask_coords_in_loop(self.__binary_placement_mask,
-                                                                                              i_obj, i_obj+h_fl_obj,
-                                                                                              self.image.shape[0],
-                                                                                              j_obj, j_obj+w_fl_obj,
-                                                                                              self.image.shape[1])
+                                                                                              i_obj, i_obj+h_fl_obj, self.image.shape[0],
+                                                                                              j_obj, j_obj+w_fl_obj, self.image.shape[1])
                             else:
                                 self.__binary_placement_mask = set_binary_mask_coordinates(self.__binary_placement_mask,
-                                                                                           i_obj, i_obj+h_fl_obj,
-                                                                                           self.image.shape[0],
-                                                                                           j_obj, j_obj+w_fl_obj,
-                                                                                           self.image.shape[1])
+                                                                                           i_obj, i_obj+h_fl_obj, self.image.shape[0],
+                                                                                           j_obj, j_obj+w_fl_obj, self.image.shape[1])
                             fluo_obj.set_coordinates((i_obj, j_obj))  # if found place, place the object
                             filtered_fluo_obj.append(fluo_obj); placed_objects += 1  # collect for returning only placed objects
                             if verbose_info:
@@ -734,15 +718,14 @@ class UscopeScene:
             self.put_objects_on(fluo_objects=tuple(self.fluo_objects), save_objects=False)
         elif not self.__image_cleared:
             if len(self.__warn_message) == 0:
-                self.__warn_message = "The scene is not clear, cannot recreate the scene"
-                warnings.warn(self.__warn_message)
-            elif self.__warn_message == "The scene is not clear, cannot recreate the scene":
+                self.__warn_message = "\nThe scene is not blank (cleared), cannot recreate the scene"; warnings.warn(self.__warn_message)
+            elif self.__warn_message == "\nThe scene is not blank (cleared), cannot recreate the scene":
                 self.__warn_message = ""
         elif len(self.fluo_objects) == 0:
             if len(self.__warn_message) == 0:
-                self.__warn_message = "There are no stored objects within this class instance"
+                self.__warn_message = "\nThere are no stored 'fluorescent' objects within this class instance"
                 warnings.warn(self.__warn_message)
-            elif self.__warn_message == "There are no stored objects within this class instance":
+            elif self.__warn_message == "\nThere are no stored 'fluorescent' objects within this class instance":
                 self.__warn_message = ""
 
     # %% Scene manipulation
@@ -807,7 +790,7 @@ class UscopeScene:
         """
         return self.__image_cleared
 
-    # %% Making scene realistic and useful by adding noise: shot and detector ones
+    # %% Adding shot and detector noise
     def add_noise(self, seed: int = None, mean_g: Union[int, float, None] = None,
                   sigma_g: Union[int, float, None] = None, gain_p: float = 1.0) -> np.ndarray:
         """
@@ -930,7 +913,7 @@ class UscopeScene:
 
         Returns
         -------
-        noisy_image : np.ndarray\n
+        noisy_image : np.ndarray \n
             With the type as the input image.\n
 
         """
@@ -975,67 +958,174 @@ class UscopeScene:
             noisy_image = raw_pixels.astype(source_image.dtype)
         return noisy_image
 
+    # %% Image casting
     @classmethod
-    def cast_image(cls, img: np.ndarray, option: str = "neg.norm.") -> Union[np.ndarray, None]:
+    def cast_image(cls, img: np.ndarray, option: str = "norm", suppress_warnings: bool = False) -> np.ndarray:
         """
-        Depending on selected option, output normalized to [-1.0, 1.0] range or rescaled to np.int8 or np.int16 ranges.
+        Cast an input image if only it contains some meaningful signal (SNR >= 5.0), not just noise or being flat (constant) image.
 
         Parameters
         ----------
         img : np.ndarray\n
             Input image as numpy array with real dtype.\n
-        option : str\n
+        option : str, Optional\n
             One of the options: 'neg.norm.', 'int8', 'int16', where:\n
-            'neg.norm.' - output np.float64 image normalized to [-1.0, 1.0]; \n
-            'int8' - output np.int8 image rescaled to [-127, 127]; \n
-            'int16' output np.int16 image rescaled to [-32767, 32767]\n
+            'neg.norm.' - output np.float64 image normalized to [-1.0, 1.0] ('negative normalized'); \n
+            'int8' - output np.int8 image rescaled to [-127, 127] (int8 plus max range in a sense: [-max, max]); \n
+            'int16' - output np.int16 image rescaled to [-32767, 32767] (int16 plus max range in a sense: [-max, max]) \n
+            'norm' - output np.float64, performs: (1) making all pixels non-negative, \n
+                    (2) normalization if max pixel > 1.0 by dividing by it\n
+            'uint8' - (1) make normalization to [0.0, 1.0] if it is possible, (2) scale to max uint8 value (255)\n
+            'uint16' - (1) make normalization to [0.0, 1.0] if it is possible, (2) scale to max uint16 value (65535)\n
+
+        suppress_warnings : bool, Optional\n
+            If True, this method won't throw any UserWarning, in particular about detected too noisy or flat image requested to be converted.\n
+
+        Raises
+        ------
+        ValueError
+            If the provided option not found in a list of available cast options.\n
 
         Returns
         -------
-        np.ndarray or None\n
-            Converted image or None if some exception occurs.\n
+        np.ndarray\n
+            Converted image.\n
         """
-        target = img.copy()  # not operating on an input image as a reference
+        target = img.copy().astype(np.float64)  # not operating on an input image as a reference
         option = option.replace(" ", "")  # prevent mistakes in typing, like "neg. norm."
-        if option in cls.__cast_options:
-            target = target.astype(np.float64)  # universal cast for array manipulations
-            if option == cls.__cast_options[0]:
-                if np.min(target) < 0.0:
-                    # Following logic applied: [-2.0, 0.0, 0.8] -> [-1.0, 0.0, 0.4] - not scaled to [-1.0, 1.0] but normalized to [-1 1]
-                    if np.abs(np.min(target)) > np.abs(np.max(target)):
-                        target /= np.abs(np.min(target)); target = np.round(target, 9)
-                    else:
-                        target /= np.abs(np.max(target)); target = np.round(target, 9)
+        is_img_noisy, _info = UscopeScene.is_image_too_noisy(target)
+        if option in cls.__cast_options and not is_img_noisy:
+            if option == cls.__cast_options[0]:  # "neg.norm."
+                minp = np.min(target); maxp = np.max(target)
+                if minp < 0.0:
+                    # Following logic applied: [-2.0, 0.0, 0.8] -> [-1.0, 0.0, 0.4] - not scaled to [-1.0, 1.0] but normalized to [-1.0, 1.0]
+                    minpa = np.abs(minp); maxpa = np.abs(maxp)
+                    if minpa > maxpa and minpa > 1.0:
+                        target /= minpa
+                    elif maxpa > minpa and maxpa > 1.0:
+                        target /= maxpa
                     return target
                 else:
-                    target -= 0.5*np.max(target)  # shift image from [0.0 ... max] to [-0.5 max, 0.5 max]
-                    target /= np.max(target); target = np.round(target, 9)  # should normalize target to [-1.0, 1.0]
+                    target -= 0.5*maxp  # shift image from [0.0 ... max] to [-0.5*max, 0.5*max]
+                    maxp = np.max(target)
+                    if maxp > 1.0:
+                        target /= maxp  # should normalize target to [-1.0, 1.0]
                     # Check that pixel values are within the range
-                    if np.max(target) > 1.0:
-                        target /= np.max(target); target = np.round(target, 9)
-                    if np.min(target) < -1.0:
-                        target /= np.abs(np.min(target)); target = np.round(target, 9)
+                    minp = np.min(target)
+                    if minp < -1.0:
+                        target /= np.abs(minp)
                     return target
-            elif option == cls.__cast_options[1]:
-                norm_neg_target = UscopeScene.cast_image(img)  # get normalized to [-1.0, 1.0] image by default
+            elif option == cls.__cast_options[1]:  # "int8"
+                norm_neg_target = UscopeScene.cast_image(img, "neg.norm.")  # get normalized to [-1.0, 1.0] image
                 norm_neg_target *= np.iinfo(np.int8).max  # just use uniform transform to [-127.0, 127.0]
-                norm_neg_target = np.round(norm_neg_target, 0)  # prepare to conversion to integer values
+                norm_neg_target = np.round(norm_neg_target, 0)  # prepare conversion to integer values
                 return norm_neg_target.astype(np.int8)
-            elif option == cls.__cast_options[2]:
-                norm_neg_target = UscopeScene.cast_image(img)  # get normalized to [-1.0, 1.0] image by default
+            elif option == cls.__cast_options[2]:  # "int16"
+                norm_neg_target = UscopeScene.cast_image(img, "neg.norm.")  # get normalized to [-1.0, 1.0] image
                 norm_neg_target *= np.iinfo(np.int16).max  # just use uniform transform to [-32767.0, 32767.0]
-                norm_neg_target = np.round(norm_neg_target, 0)  # prepare to conversion to integer values
+                norm_neg_target = np.round(norm_neg_target, 0)  # prepare conversion to integer values
                 return norm_neg_target.astype(np.int16)
-            else:
-                return None
-        else:
+            elif option == cls.__cast_options[3] or option == (cls.__cast_options[3] + "."):  # "norm" or "norm."
+                min_pixel = np.min(target)
+                if min_pixel < 0.0:  # shift all pixel values to make them non-negative and check that max pixel allows normalization
+                    target += np.abs(min_pixel)
+                max_pixel = np.max(target)
+                if max_pixel > 1.0:  # so, normalize only when values aren't in a range [0.0, 1.0] already
+                    target /= max_pixel
+                return target
+            elif option == cls.__cast_options[4]:  # "uint8"
+                norm_target = UscopeScene.cast_image(img, "norm")  # unified logic for normalizing image to [0.0, 1.0] range
+                norm_target *= np.iinfo(np.uint8).max  # just use uniform transform to [0.0, 255.0]
+                norm_target = np.round(norm_target, 0)
+                return norm_target.astype(np.uint8)
+            elif option == cls.__cast_options[5]:  # "uint16"
+                norm_target = UscopeScene.cast_image(img, "norm"); norm_target *= np.iinfo(np.uint16).max
+                norm_target = np.round(norm_target, 0)
+                return norm_target.astype(np.uint16)
+        elif option not in cls.__cast_options:
             raise ValueError(f"\nProvided option '{option}' not found among the supported options: {cls.__cast_options}")
+        elif is_img_noisy:
+            _convers = ""  # store performed conversion method
+            # conversion strategy: round, clipping all excessive values for any integer conversion
+            if option in [cls.__cast_options[1], cls.__cast_options[2], cls.__cast_options[4], cls.__cast_options[5]]:
+                target = np.round(target)  # round for any integer conversion first
+            if option == cls.__cast_options[1]:   # "int8"
+                target = np.clip(target, a_min=np.iinfo(np.int8).min, a_max=np.iinfo(np.int8).max); target = target.astype(np.int8)
+                _convers = "Rounded, clipped to int8 range, casted to int8"
+            elif option == cls.__cast_options[2]:  # "int16"
+                target = np.clip(target, a_min=np.iinfo(np.int16).min, a_max=np.iinfo(np.int16).max); target = target.astype(np.int16)
+                _convers = "Rounded, clipped to int16 range, casted to int16"
+            elif option == cls.__cast_options[4]:  # "uint8"
+                target = np.clip(target, a_min=np.iinfo(np.uint8).min, a_max=np.iinfo(np.uint8).max); target = target.astype(np.uint8)
+                _convers = "Rounded, clipped to uint8 range, casted to uint8"
+            elif option == cls.__cast_options[5]:  # "uint16"
+                target = np.clip(target, a_min=np.iinfo(np.uint16).min, a_max=np.iinfo(np.uint16).max); target = target.astype(np.uint16)
+                _convers = "Rounded, clipped to uint16 range, casted to uint16"
+            elif option == cls.__cast_options[3] or option == (cls.__cast_options[3] + "."):  # "norm"
+                minp = np.min(target)
+                if minp < 0.0:
+                    target += np.abs(minp); _convers = "Shifted by abs(min_pixel), casted to np.float64"
+                else:
+                    _convers = "Unchanged pixel values, casted to np.float64"
+            else:
+                _convers = "Unchanged pixel values, casted to np.float64"
+            if not suppress_warnings:
+                _warn = f"\nImage is either flat (constant) or contains only noise, report: \n{_info}.\nConversion used: {_convers}"
+                warnings.warn(_warn)
+        return target
+
+    @staticmethod
+    def is_image_too_noisy(img: np.ndarray) -> Tuple[bool, str]:
+        """
+        Check if the provided image contains some signal or just noise.
+
+        Parameters
+        ----------
+        img : np.ndarray \n
+            Target image.
+
+        Returns
+        -------
+        Tuple[bool, str] \n
+            First flag True, if image is defined as containing noise only, second - report about defined reason.
+
+        """
+        target = img.copy().astype(np.float64); minp = np.min(target); _report = ""; _image_too_noisy = False; snr = 0.0
+        if minp < 0.0:
+            target += np.abs(minp)  # make all pixels non-negative
+        # Automatically define absolute minimal pixel value empirically
+        max_p6 = np.max(np.round(target, 6)); max_p9 = np.max(np.round(target, 9))
+        if max_p6 > 0.0:
+            abs_min_pixel_value = 1E-6
+        elif max_p9 > 0.0:
+            abs_min_pixel_value = 1E-9
+        else:
+            abs_min_pixel_value = 1E-12
+        p1, p99 = np.percentile(target, [1, 99]); pixels_spread = p99 - p1  # estimates pixel amplitude
+        if p99 >= abs_min_pixel_value:
+            mad = np.median(np.abs(target - np.median(target))); sigma = 1.4826*mad  # estimates standard deviation based on MAD
+            if sigma > 0.0:
+                snr = pixels_spread / sigma  # estimates SNR of an image
+            else:
+                if pixels_spread > 0:
+                    p25, p75 = np.percentile(target, [25, 75]); sigma = p75 - p25 / 1.349  # use interquantile estimation of sigma
+                    if sigma > 0.0:
+                        snr = pixels_spread / sigma  # estimates SNR of an image
+                    else:
+                        snr = pixels_spread / abs_min_pixel_value    # will produce huge SNR
+        if p99 < abs_min_pixel_value:
+            _report = f"99% Percentile in image ({p99}) is less than abs. min. pixel value({abs_min_pixel_value})"
+            _image_too_noisy = True
+        elif snr < 5.0:
+            _report = f"Estimated SNR ({round(snr, 1)}) estimated is less than 5.0, noise prevails over signal or there is no signal"
+            _image_too_noisy = True
+        return _image_too_noisy, _report
 
 
 # %% Object class definition
 class FluorObj:
     """
-    Modelling the fluorescent bright object with the specified type.
+    Modeling the fluorescent bright object with the specified type.
 
     It can be used for embedding it to the 'UscopeScene' class for building up the microscopic image.
 
@@ -1220,7 +1310,8 @@ class FluorObj:
 
         Returns
         -------
-        2D shape of the object (intensity representation).
+        np.ndarray | None \n
+            2D shape of the object (intensity representation).
 
         """
         if center_shifts is not None and len(center_shifts) == 2:
@@ -1239,7 +1330,7 @@ class FluorObj:
                 self.profile = discrete_shaped_bead_acc(self.radius, self.center_shifts)
             else:
                 if accelerated and not numba_installed:
-                    __warn_message = "Acceleration isn't possible because 'numba' library not installed in the current environment"
+                    __warn_message = "\nAcceleration isn't possible because 'numba' library not installed in the current environment"
                     warnings.warn(__warn_message)
                 self.profile = discrete_shaped_bead(self.radius, self.center_shifts)
         elif self.shape_type == "ellipse" or self.shape_type == "el":
@@ -1250,7 +1341,7 @@ class FluorObj:
                 self.profile = discrete_shaped_ellipse_acc(sizes, ellipse_angle, self.center_shifts)
             else:
                 if accelerated and not numba_installed:
-                    __warn_message = "Acceleration isn't possible because 'numba' library not installed in the current environment"
+                    __warn_message = "\nAcceleration isn't possible because 'numba' library not installed in the current environment"
                     warnings.warn(__warn_message)
                 self.profile = discrete_shaped_ellipse(sizes, ellipse_angle, self.center_shifts)
         else:
@@ -1382,11 +1473,11 @@ class FluorObj:
                 m_center, n_center = self.profile.shape  # image sizes
                 if self.center_shifts[0] < 0.0 and (self.shape_type == "round" or self.shape_type == "r"):
                     m_center = m_center // 2 + self.center_shifts[0] + 1.0
-                elif self.center_shifts[0] >= 0.0:
+                elif self.center_shifts[0] >= 0.0 or self.center_shifts[0] < 0.0:
                     m_center = m_center // 2 + self.center_shifts[0]
                 if self.center_shifts[1] < 0.0 and (self.shape_type == "round" or self.shape_type == "r"):
                     n_center = n_center // 2 + self.center_shifts[1] + 1.0
-                elif self.center_shifts[1] >= 0.0:
+                elif self.center_shifts[1] >= 0.0 or self.center_shifts[1] < 0.0:
                     n_center = n_center // 2 + self.center_shifts[1]
             else:
                 plot_patch = False  # just prevent the plotting the patch on the cropped images
@@ -1545,11 +1636,12 @@ class FluorObj:
 
 
 # %% Overall utility functions
-def force_precompilation():
+def precompile_fluoscene():
     """
-    Force compilation of computing functions for round and ellipse 'precise' shaped objects.
+    Force compilation of computing functions for round and ellipse 'precise'-shaped objects in FluorObj class by 'numba' library.
 
-    Note that even this precompilation doesn't guarantee the acceleration of methods in UscopeScene class (use its '' method instead).
+    Note that compilation accelerates only functions of shape calculation, not placing objects on a scene.\n
+    Compilation results are cached and stored on a local drive by 'numba' automatically, so it's enough to call this function once.\n
 
     Returns
     -------
@@ -1560,243 +1652,35 @@ def force_precompilation():
         probe_obj = FluorObj(typical_size=2.0); probe_obj.get_shape(accelerated=True); del probe_obj  # for round shape
         probe_obj = FluorObj(shape_type='ellipse', typical_size=(2.65, 2.0, np.pi/6.0)); probe_obj.get_shape(accelerated=True); del probe_obj
     else:
-        __warn_message = "Acceleration isn't possible because 'numba' library not installed in the current environment"
+        __warn_message = "\nAcceleration isn't possible because 'numba' library not installed in the current environment"
         warnings.warn(__warn_message)
 
 
+def clean_fluoscene_cache() -> bool:
+    """
+    Clean local cache files created by numba after compilation of computation methods.
+
+    Returns
+    -------
+    bool \n
+        Flag if local cache is assumed (at least 5 cached files successfully removed) to be cleaned.
+
+    """
+    _local_cache_cleaned = False  # flag to show that local numba cache found and has been cleaned
+    if numba_installed:
+        root = Path(__file__).resolve().parent; cache_folder = root.joinpath("utils").joinpath("__pycache__")
+        if cache_folder.exists() and cache_folder.is_dir():
+            _n_cleaned = 0
+            for obj in cache_folder.iterdir():
+                if obj.is_file() and (obj.suffix == ".nbc" or obj.suffix == ".nbi"):
+                    try:
+                        obj.unlink(missing_ok=True); _n_cleaned += 1
+                    except (PermissionError, OSError):
+                        _n_cleaned = 0; break  # automatically breaks loop assuming that invalid permission is universal
+            if _n_cleaned >= 5:  # 5 - minimal count of caches created by numba, assume that cache is cleaned if no error encountered
+                _local_cache_cleaned = True
+    return _local_cache_cleaned
+
+
 # %% Define default export classes and methods used with import * statement (import * from fluoscenepy)
-__all__ = ['UscopeScene', 'FluorObj', 'force_precompilation']
-
-# %% Tests of different scenarios
-if __name__ == "__main__":
-    plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
-    test_precise_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
-    test_cropped_shapes = False; test_put_objects = False; test_generate_objects = False; test_overall_gen = False; test_cast = False
-    test_precise_shape_gen = False; test_round_shaped_gen = False; test_adding_noise = False; test_various_noises = False
-    shifts = (-0.2, 0.44); test_cropping_shifted_circles = False; shifts1 = (0.0, 0.0); shifts2 = (-0.14, 0.95); shifts3 = (0.875, -0.99)
-    test_compiling_acceleration = False  # testing the acceleration through compilation using numba
-    test_placing_circles = False  # testing speed up placing algorithm
-    prepare_centered_docs_images = False  # for making centered sample images for preparing Readme file about this project
-    prepare_shifted_docs_images = False; shifts_sample = (0.24, 0.0)  # for making shifted sample images for preparing Readme
-    prepare_scene_samples = False  # for preparing illustrative scenes with placed on them objects
-    prepare_favicon_img = False; prepare_large_favicon_img = False  # generate picture with dense round objects
-    test_add_noise_ext_img = False  # testing of adding noise to an external image
-
-    # Check if skimage (not included in the project's dependencies) is installed and set the flag for using it for saving generated images
-    saving_possible = True
-    try:
-        from skimage import io
-    except ModuleNotFoundError:
-        saving_possible = False
-
-    # Testing the centered round objects generation
-    if test_computed_centered_beads:
-        gb1 = FluorObj(typical_size=2.0, border_type='co', shape_method='g'); gb1.get_shape(); gb1.plot_shape()
-        gb2 = FluorObj(typical_size=2.0, border_type='co', shape_method='lor'); gb2.get_shape(); gb2.plot_shape()
-        gb3 = FluorObj(typical_size=2.0, border_type='co', shape_method='dlogf'); gb3.get_shape(); gb3.plot_shape()
-        gb4 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump2'); gb4.get_shape(); gb4.plot_shape()
-        gb5 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump3'); gb5.get_shape(); gb5.plot_shape()
-        gb6 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump8'); gb6.get_shape(); gb6.plot_shape()
-        gb7 = FluorObj(typical_size=2.0, border_type='co', shape_method='smcir'); gb7.get_shape(); gb7.plot_shape()
-        gb9 = FluorObj(typical_size=2.0, border_type='co', shape_method='ovcir'); gb9.get_shape(); gb9.plot_shape()
-        gb10 = FluorObj(typical_size=2.0, border_type='co', shape_method='uncir'); gb10.get_shape(); gb10.plot_shape()
-    if test_precise_centered_bead:
-        gb8 = FluorObj(typical_size=2.0); gb8.get_shape(); gb8.crop_shape(); gb8.plot_shape()
-        gb14 = FluorObj(typical_size=4.75); gb14.get_shape(); gb14.crop_shape(); gb14.plot_shape()
-    # Testing cropping of shifted circles with precise borders
-    if test_cropping_shifted_circles:
-        gb16 = FluorObj(typical_size=3.75, center_shifts=shifts1); gb16.get_shape(); gb16.plot_shape()
-        gb16.get_casted_shape(max_pixel_value=201); gb16.crop_shape(); gb16.plot_shape(); gb16.plot_cast_shape()
-        gb17 = FluorObj(typical_size=3.75, center_shifts=shifts2); gb17.get_shape(); gb17.crop_shape(); gb17.plot_shape()
-        gb18 = FluorObj(typical_size=3.75, center_shifts=shifts3); gb18.get_shape(); gb18.plot_shape(); gb18.crop_shape(); gb18.plot_shape()
-        gb20 = FluorObj(typical_size=3.75, center_shifts=shifts); gb20.get_shape(); gb20.plot_shape()
-        gb20.get_casted_shape(max_pixel_value=2068, image_type='uint16'); gb20.crop_shape(); gb20.plot_cast_shape()
-    # Testing the shifted from the center objects generation
-    if test_computed_shifted_beads and not test_computed_centered_beads:
-        gb1 = FluorObj(typical_size=2.0, border_type='co', shape_method='g', center_shifts=shifts); gb1.get_shape(); gb1.plot_shape()
-        gb2 = FluorObj(typical_size=2.0, border_type='co', shape_method='lor', center_shifts=shifts); gb2.get_shape(); gb2.plot_shape()
-        gb3 = FluorObj(typical_size=2.0, border_type='co', shape_method='dlogf', center_shifts=shifts); gb3.get_shape(); gb3.plot_shape()
-        gb4 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump2', center_shifts=shifts); gb4.get_shape(); gb4.plot_shape()
-        gb5 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump3', center_shifts=shifts); gb5.get_shape(); gb5.plot_shape()
-        gb6 = FluorObj(typical_size=2.0, border_type='co', shape_method='bump8', center_shifts=shifts); gb6.get_shape(); gb6.plot_shape()
-        gb7 = FluorObj(typical_size=2.0, border_type='co', shape_method='smcir', center_shifts=shifts); gb7.get_shape(); gb7.plot_shape()
-        gb9 = FluorObj(typical_size=2.0, border_type='co', shape_method='ovcir', center_shifts=shifts); gb9.get_shape(); gb9.plot_shape()
-        gb10 = FluorObj(typical_size=2.0, border_type='co', shape_method='uncir', center_shifts=shifts); gb10.get_shape(); gb10.plot_shape()
-    if test_precise_shifted_beads:
-        gb8 = FluorObj(typical_size=2.0, center_shifts=shifts); gb8.get_shape(); gb8.crop_shape(); gb8.plot_shape()
-        if test_casting:
-            gb8.get_casted_shape(255); gb8.plot_cast_shape()
-    # Test of ellipse shaped objects generation
-    if test_ellipse_centered:
-        gb11 = FluorObj(shape_type='ellipse', typical_size=(4.4, 2.5, np.pi/3)); gb11.get_shape(); gb11.plot_shape()
-        if test_casting:
-            gb11.get_casted_shape(255); gb11.plot_cast_shape()
-    if test_ellipse_shifted:
-        gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(shifts); gb12.crop_shape(); gb12.plot_shape()
-        if test_casting:
-            gb12.get_casted_shape(255); gb12.plot_cast_shape()
-    # Testing cropping of shifted ellipse
-    if test_cropped_shapes:
-        gb12 = FluorObj(shape_type='el', typical_size=(4.4, 2.5, np.pi/3)); gb12.get_shape(shifts); gb12.plot_shape()
-    # Testing of putting the manually generated objects on the scene
-    if test_put_objects:
-        scene = UscopeScene(width=24, height=21); gb8 = FluorObj(typical_size=2.78, center_shifts=shifts); gb8.get_shape()
-        gb12 = FluorObj(shape_type='el', typical_size=(4.9, 2.8, np.pi/3)); gb12.get_shape(); gb12.get_casted_shape(max_pixel_value=255)
-        gb8.get_casted_shape(max_pixel_value=254); gb8.crop_shape(); gb12.crop_shape()  # gb8.plot_shape(); gb12.plot_shape()
-        gb8.set_image_sizes(scene.shape); gb12.set_image_sizes(scene.shape); gb8.set_coordinates((-1, 3)); gb12.set_coordinates((12, 5))
-        gb9 = FluorObj(typical_size=3.0, center_shifts=(0.25, -0.1)); gb9.get_shape(); gb9.get_casted_shape(max_pixel_value=251)
-        gb9.crop_shape(); gb9.set_image_sizes(scene.shape); gb9.set_coordinates((10, 18))
-        scene.put_objects_on(fluo_objects=(gb8, gb12)); scene.put_objects_on(fluo_objects=(gb9, )); scene.show_scene()
-    # Testing of generating scenes with various settings
-    if test_generate_objects:
-        objs = UscopeScene.get_random_objects(mean_size=4.2, size_std=1.5, shapes='r', intensity_range=(230, 252))
-        objs2 = UscopeScene.get_random_objects(mean_size=(7.3, 5), size_std=(2, 1.19), shapes='el', intensity_range=(220, 250))
-        scene = UscopeScene(width=45, height=38); objs = scene.set_random_places(objs); objs2 = scene.set_random_places(objs2)
-        scene.put_objects_on(objs); scene.put_objects_on(objs2, save_objects=False); scene.show_scene()
-        # scene2 = UscopeScene(width=55, height=46); scene2.show_scene()  # will show 'Blank' image
-    if test_overall_gen:
-        objs3 = UscopeScene.get_random_objects(mean_size=(8.3, 5.4), size_std=(2, 1.19),
-                                               shapes='mixed', intensity_range=(182, 250), n_objects=5)
-        scene = UscopeScene(width=55, height=46); scene.spread_objects_on(objs3); scene.show_scene(color_map='gray')
-    if test_precise_shape_gen:
-        objs4 = UscopeScene.get_random_objects(mean_size=(6.21, 5.36), size_std=(1.25, 0.95), shapes='mixed', intensity_range=(182, 250),
-                                               n_objects=5, verbose_info=True)
-        scene = UscopeScene(width=32, height=28); scene2 = UscopeScene(width=32, height=28)
-        objs4_placed = scene.set_random_places(objs4, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
-        scene.put_objects_on(objs4, save_only_objects_inside=True); scene.show_scene()
-        objs4_placed2 = scene2.set_random_places(objs4, touching=False, only_within_scene=True, verbose_info=True)
-        scene2.put_objects_on(objs4, save_only_objects_inside=True); scene2.show_scene()
-    if test_round_shaped_gen:
-        objs5 = UscopeScene.get_round_objects(mean_size=7.5, size_std=1.2, intensity_range=(188, 251), n_objects=55)
-        scene3 = UscopeScene(width=102, height=90)
-        objs5_pl = scene3.set_random_places(objs5, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
-        scene3.put_objects_on(objs5, save_only_objects_inside=True); scene3.show_scene()
-    if test_adding_noise:
-        objs6 = UscopeScene.get_random_objects(mean_size=(8.11, 6.36), size_std=(1.05, 0.92), shapes='mixed', intensity_range=(180, 245),
-                                               n_objects=4, verbose_info=True)
-        scene = UscopeScene(width=48, height=41)
-        objs6_placed = scene.set_random_places(objs6, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
-        scene.put_objects_on(objs6_placed, save_only_objects_inside=True); scene.show_scene(str_id="Without additional noise")
-        scene.add_noise(); scene.show_scene(str_id="With Poisson  & Gaussian noise")
-    # Test adding noise to float image and various mean / sigma values
-    if test_various_noises:
-        objs6 = UscopeScene.get_random_objects(mean_size=(8.61, 6.36), size_std=(1.05, 0.92), shapes='mixed', intensity_range=(180, 245),
-                                               n_objects=4, verbose_info=True)
-        scene8 = UscopeScene(width=48, height=37)
-        obj61_p = scene8.set_random_places(objs6, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
-        scene8.put_objects_on(obj61_p, save_only_objects_inside=True); scene8.show_scene("Without additional noise")
-        scene8.add_noise(); scene8.show_scene("With default noise")
-        scene8.add_noise(mean_g=180//6, sigma_g=180//9); scene8.show_scene("With stronger noise")
-        scene8.add_noise(mean_g=180//4, sigma_g=180//6); scene8.show_scene("With much more stronger noise")
-        scene8.remove_noise(); scene8.show_scene("Removed noise")
-    # Test reworked algorithm for placing large number of circles that should / not lay within the scene, not touching / overlapping
-    if test_placing_circles:
-        objs12 = UscopeScene.get_round_objects(mean_size=8.75, size_std=1.4, intensity_range=(2000, 4000),
-                                               n_objects=21, image_type=np.uint16)
-        scene12 = UscopeScene(width=92, height=84, image_type='uint16'); scene14 = UscopeScene(width=92, height=84, image_type='uint16')
-        objs12_placed = scene12.set_random_places(objs12, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
-        scene12.put_objects_on(objs12_placed, save_only_objects_inside=True); scene12.show_scene("Circles within scene")
-        objs12_pl2 = scene14.set_random_places(objs12, overlapping=False, touching=False, verbose_info=True)
-        scene14.put_objects_on(objs12_pl2, save_only_objects_inside=True); scene14.show_scene("Circles partially within scene")
-        scene15 = UscopeScene(width=41, height=41, image_type='uint16'); objs12_pl3 = scene14.set_random_places(objs12, verbose_info=True)
-        scene15.put_objects_on(objs12_pl3, save_only_objects_inside=True); scene15.show_scene("Circles default parameters")
-    # Preparing images for the documentation (README in the project repo)
-    if prepare_centered_docs_images:
-        objs1 = FluorObj(typical_size=2.0, border_type="computed", shape_method="oversampled circle")
-        objs2 = FluorObj(typical_size=2.0, border_type="computed", shape_method="circle")
-        objs3 = FluorObj(typical_size=2.0, border_type="computed", shape_method="undersampled circle")
-        objs1.get_shape(); objs1.plot_shape(); objs2.get_shape(); objs2.plot_shape(); objs3.get_shape(); objs3.plot_shape()
-        objs4 = FluorObj(typical_size=2.0); objs4.get_shape(); objs4.plot_shape()
-        objs5 = FluorObj(typical_size=4.8); objs5.get_shape(); objs5.plot_shape(); objs5.get_shaping_functions()
-        objs6 = FluorObj(typical_size=4.8, border_type="co", shape_method="bump3"); objs6.get_shape(); objs6.plot_shape()
-    if prepare_shifted_docs_images:
-        objs7 = FluorObj(typical_size=2.0, center_shifts=shifts_sample, border_type="computed", shape_method="circle")
-        objs8 = FluorObj(typical_size=2.0, center_shifts=shifts_sample)
-        objs7.get_shape(); objs7.plot_shape(); objs8.get_shape(); objs8.plot_shape()
-        objel3 = FluorObj(shape_type='ellipse', typical_size=(4.8, 3.3, np.pi/6), center_shifts=shifts_sample)
-        objel3.get_shape(); objel3.plot_shape()
-    if prepare_scene_samples:
-        force_precompilation()  # forcing precompilation by numba
-        samples1 = UscopeScene.get_random_objects(mean_size=(9.5, 8.0), size_std=(1.15, 0.82), shapes='mixed', intensity_range=(186, 254),
-                                                  n_objects=25, verbose_info=True, accelerated=True)
-        scene_s = UscopeScene(width=104, height=92)
-        samples1_pl = scene_s.set_random_places(samples1, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
-        scene_s.put_objects_on(samples1_pl, save_only_objects_inside=True); scene_s.show_scene("Scene without noise", color_map="gray")
-        if saving_possible:
-            io.imsave(Path.home().joinpath("Scene_without_noise.png"), scene_s.image)
-        scene_s.add_noise(); scene_s.show_scene("Scene with added noise (default parameters)", color_map="gray")
-        if saving_possible:
-            io.imsave(Path.home().joinpath("Scene_with_noise.png"), scene_s.image)
-    # Testing acceleration by using numba compilation in the imported module
-    if test_compiling_acceleration:
-        force_precompilation()  # force precompilation of functions by numba
-        # Repeat checks twice for repeatability
-        for i in range(2):
-            # Computing discrete round shape with the attempt to accelerate computation by using numba compilation in the module
-            t_ov_1 = time.perf_counter(); objs10 = FluorObj(typical_size=12.0); objs10.get_shape(accelerated=True); objs10.plot_shape()
-            elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
-            if elapsed_time_ov > 1000:
-                elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 2)
-                print(f"Compiled round shape computation took {elapsed_time_ov} seconds", flush=True)
-            else:
-                print(f"Compiled round shape computation took {elapsed_time_ov} milliseconds", flush=True)
-            # Standard computing discrete round shape
-            t_ov_1 = time.perf_counter(); objs11 = FluorObj(typical_size=12.0); objs11.get_shape(); objs11.plot_shape()
-            elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
-            if elapsed_time_ov > 1000:
-                elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 2)
-                print(f"Standard round shape computation took {elapsed_time_ov} seconds", flush=True)
-            else:
-                print(f"Standard round shape computation took {elapsed_time_ov} milliseconds", flush=True)
-            # Computing discrete ellipse shape with the attempt to accelerate computation by using numba compilation in the module
-            t_ov_1 = time.perf_counter(); objs12 = FluorObj(shape_type='ellipse', typical_size=(7.5, 6.0, np.pi/3))
-            objs12.get_shape(accelerated=True); objs12.plot_shape(); elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
-            if elapsed_time_ov > 1000:
-                elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 2)
-                print(f"Compiled ellipse shape computation took {elapsed_time_ov} seconds", flush=True)
-            else:
-                print(f"Compiled ellipse shape computation took {elapsed_time_ov} milliseconds", flush=True)
-            # Standard computing discrete ellipse shape
-            t_ov_1 = time.perf_counter(); objs13 = FluorObj(shape_type='ellipse', typical_size=(7.5, 6.0, np.pi/3))
-            objs13.get_shape(); objs13.plot_shape(); elapsed_time_ov = int(round(1000.0*(time.perf_counter() - t_ov_1), 0))
-            if elapsed_time_ov > 1000:
-                elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 2)
-                print(f"Standard ellipse shape computation took {elapsed_time_ov} seconds", flush=True)
-            else:
-                print(f"Standard ellipse shape computation took {elapsed_time_ov} milliseconds", flush=True)
-            if i == 0:
-                plt.close('all'); del objs10, objs11, objs12, objs13
-    # Prepare sample images for using as favicons in the documentation and for the main documentation page
-    if prepare_favicon_img:
-        round_objs2 = UscopeScene.get_round_objects(mean_size=10.0, size_std=2.0, intensity_range=(242, 252), n_objects=100)
-        scene_favicon = UscopeScene(width=256, height=256)
-        round_objs2 = scene_favicon.set_random_places(round_objs2, overlapping=False, touching=False, verbose_info=True)
-        scene_favicon.put_objects_on(round_objs2); scene_favicon.add_noise(); scene_favicon.show_scene(color_map='gray')
-        if saving_possible:
-            io.imsave(Path.home().joinpath("favicon.png"), scene_favicon.image)
-    if prepare_large_favicon_img:
-        round_objs3 = UscopeScene.get_round_objects(mean_size=8.0, size_std=1.0, intensity_range=(240, 252), n_objects=20)
-        scene_favicon2 = UscopeScene(width=64, height=64)
-        round_objs3 = scene_favicon2.set_random_places(round_objs3, overlapping=False, touching=False, verbose_info=True)
-        scene_favicon2.put_objects_on(round_objs3); scene_favicon2.add_noise(); scene_favicon2.show_scene(color_map='cividis')
-        custom_path = ""
-        if len(custom_path) > 0 and saving_possible:
-            io.imsave(Path(custom_path), scene_favicon2.image)
-
-    if test_add_noise_ext_img:
-        scene4noise = UscopeScene(width=169, height=197)
-        print(scene4noise.shape_types)
-        objs20 = scene4noise.get_objects_acc(mean_size=(5, 10), size_std=(1, 4), intensity_range=(220, 251), shapes='mixed', n_objects=9,
-                                             verbose_info=True)
-        objs20 = scene4noise.set_random_places(objs20, overlapping=False, touching=False, only_within_scene=True, verbose_info=True)
-        scene4noise.put_objects_on(objs20); scene4noise.show_scene()
-        noisy_img = scene4noise.add_noise(mean_g=5, sigma_g=22, gain_p=0.55); scene4noise.show_scene()
-
-    if test_cast:
-        scene = UscopeScene(width=267, height=232, image_type=np.uint16)
-        objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(0, 4094), n_objects=14, image_type=scene.img_type)
-        objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(mean_g=200); scene.show_scene()
-        img_neg_norm = UscopeScene.cast_image(scene.image); img_int8 = UscopeScene.cast_image(scene.image, option='int8')
-        img_int16 = UscopeScene.cast_image(scene.image, option='int16')
-
-    plt.show()
+__all__ = ['UscopeScene', 'FluorObj', 'precompile_fluoscene', 'clean_fluoscene_cache']
