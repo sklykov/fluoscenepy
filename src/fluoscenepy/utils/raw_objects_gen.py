@@ -356,7 +356,7 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
                 if distance < cutoff_radius:
                     img[i, j] = np.exp(distance/r)/np.power(1.0 + np.exp(distance/r), 2)
             elif 'bump' in bead_type:
-                cutoff_proportion = 1.25  # regulates the cutoff size of the bump function in the fraction of radius, empirical value
+                cutoff_proportion = 1.0  # regulates the cutoff size of the bump function in the fraction of radius, empirical value
                 if bead_type == 'bump square' or bead_type == 'bump2':
                     bump_pow = 2
                 elif bead_type == 'bump cube' or bead_type == 'bump3':
@@ -387,7 +387,6 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
                     circle_arc_area = np.where(distances <= r, 0.02, 0.0)  # assigning the non-zero number for intersected mesh grid points
                     if np.max(circle_arc_area) > 0.0:  # pixel intersects with the circle border
                         img[i, j] = 1.0
-                        # plt.figure(); plt.imshow(circle_arc_area)
             elif bead_type == 'undersampled circle' or bead_type == 'uncir':
                 if distance < r:  # the border pixels (observed when the bead is centered) are removed, only with distances less than r saved
                     img[i, j] = 1.0
@@ -556,7 +555,7 @@ __all__ = ['continuous_shaped_bead', 'discrete_shaped_bead', 'discrete_shaped_el
 
 # %% Tests
 if __name__ == "__main__":
-    test_disk_show = False; test_ellipse_centered = False; test_ellipse_shifted = False; figsizes = (6.5, 6.5); plt.close('all')
+    test_disk_show = True; test_ellipse_centered = False; test_ellipse_shifted = False; figsizes = (6.5, 6.5); plt.close('all')
     prepare_sample_image_intersections = False  # for making intersection graph for the README file
     # Testing disk (circle or bead) representation
     if test_disk_show:

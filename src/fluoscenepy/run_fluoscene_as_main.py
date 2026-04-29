@@ -48,6 +48,7 @@ if actual_repo_imported and __name__ == "__main__":
     test_add_noise_ext_img = False  # testing of adding noise to an external image
     test_cleaning_compilation_cache = False  # can be checked if local numba cache cleaned
     test_cast = True; check_warning = True  # casting images from different source to different data types
+    show_valuable_round_objs = True
 
     # Check if skimage (not included in the project's dependencies) is installed and set the flag for using it for saving generated images
     saving_possible = True
@@ -122,8 +123,8 @@ if actual_repo_imported and __name__ == "__main__":
         scene.put_objects_on(objs); scene.put_objects_on(objs2, save_objects=False); scene.show_scene()
         # scene2 = UscopeScene(width=55, height=46); scene2.show_scene()  # will show 'Blank' image
     if test_overall_gen:
-        objs3 = UscopeScene.get_random_objects(mean_size=(8.3, 5.4), size_std=(2, 1.19),
-                                               shapes='mixed', intensity_range=(182, 250), n_objects=5)
+        objs3 = UscopeScene.get_random_objects(mean_size=(8.3, 5.4), size_std=(2, 1.19), shapes='mixed',
+                                               intensity_range=(182, 250), n_objects=5)
         scene = UscopeScene(width=55, height=46); scene.spread_objects_on(objs3); scene.show_scene(color_map='gray')
     if test_precise_shape_gen:
         objs4 = UscopeScene.get_random_objects(mean_size=(6.21, 5.36), size_std=(1.25, 0.95), shapes='mixed', intensity_range=(182, 250),
@@ -270,6 +271,11 @@ if actual_repo_imported and __name__ == "__main__":
         else:
             with warnings.catch_warnings():  # context manager for collecting Warnings based on rule below
                 warnings.simplefilter("ignore", UserWarning); norm_noisy_img = UscopeScene.cast_image(noisy_img)
+
+    if show_valuable_round_objs:
+        scene = UscopeScene(width=267, height=232, image_type=np.uint16)
+        objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(15, 4090), n_objects=20, image_type=scene.img_type)
+        objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.show_scene()
 
     if test_cleaning_compilation_cache:
         print("Local cache cleaned:", clean_fluoscene_cache())

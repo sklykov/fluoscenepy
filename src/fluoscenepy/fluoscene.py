@@ -1141,7 +1141,7 @@ class FluorObj:
     __acceptable_shape_methods: list = ['gaussian', 'g', 'lorentzian', 'lor', 'derivative of logistic func.', 'dlogf', 'bump square',
                                         'bump2', 'bump cube', 'bump3', 'bump ^8', 'bump8', 'smooth circle', 'smcir', 'oversampled circle',
                                         'ovcir', 'undersampled circle', 'uncir', 'circle', 'c']
-    valuable_round_shapes: list = ['gaussian', 'derivative of logistic func.', 'bump cube', 'bump ^8', 'smooth circle']
+    valuable_round_shapes: list = ['bump cube', 'bump ^8', 'gaussian']   # more natural looking structures
     image_type = None; center_shifts: tuple = (0.0, 0.0)   # subpixel shift of the center of the object
     casted_profile: Optional[np.ndarray] = None  # cast profile to a normalized one for a provided image in a method
     __profile_cropped: bool = False  # flag for setting if the profile was cropped (zero pixel rows / columns removed)
@@ -1663,7 +1663,7 @@ def clean_fluoscene_cache() -> bool:
     Returns
     -------
     bool \n
-        Flag if local cache is assumed (at least 5 cached files successfully removed) to be cleaned.
+        Flag if local cache is assumed (at least 8 cached files successfully removed) to be cleaned.
 
     """
     _local_cache_cleaned = False  # flag to show that local numba cache found and has been cleaned
@@ -1677,7 +1677,7 @@ def clean_fluoscene_cache() -> bool:
                         obj.unlink(missing_ok=True); _n_cleaned += 1
                     except (PermissionError, OSError):
                         _n_cleaned = 0; break  # automatically breaks loop assuming that invalid permission is universal
-            if _n_cleaned >= 5:  # 5 - minimal count of caches created by numba, assume that cache is cleaned if no error encountered
+            if _n_cleaned >= 8:  # 8 - minimal count of caches created by numba, assume that cache is cleaned if no error encountered
                 _local_cache_cleaned = True
     return _local_cache_cleaned
 
