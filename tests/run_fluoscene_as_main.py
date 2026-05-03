@@ -1,39 +1,32 @@
 # -*- coding: utf-8 -*-
 """
-Provide way for running within IDE the main script from a library with relative imports for testing as a file.
+Test features of 'fluoscenepy' by importing of editable installation (pip install -e . - command for such installation).
 
 @author: @sklykov
 
 """
 # %% Imports and checking its validity
-import sys
 from pathlib import Path
 import numpy as np
+import matplotlib
+import importlib
+from contextlib import suppress
 import time
 import warnings
 
 # Explicit backend assignment for matplotlib - for compatibility between running configurations in Spyder and PyCharm IDEs
-import matplotlib
-try:
+with suppress(ImportError):
     matplotlib.use('Qt5Agg')
-except ImportError:  # will be thrown in the environment doesn't contain Qt-like library
-    pass
 import matplotlib.pyplot as plt
 
-# Note: the trick below is needed only if in a development environment is already installed this package (previous version) from pypi
-# and one need to import actual files from a repository folder instead of installed ones in an environment
-root = Path(__file__).resolve().parents[1]  # one step on top in parent folder, should be a root folder in a repo, not "src"
-if str(root) not in sys.path:
-    sys.path.insert(0, str(root))  # append to the start path to a root folder of a repo for correct import in a session
+# Import dev version of a package
+import fluoscenepy.fluoscene
+importlib.reload(fluoscenepy.fluoscene)
+from fluoscenepy.fluoscene import precompile_fluoscene, FluorObj, UscopeScene, clean_fluoscene_cache
 
-# Warning below should be ignored in the script context, since root path should be added before for the proper import
-import fluoscenepy.fluoscene as fs  # for checking that this import resolves to a folder in a repository
-from fluoscenepy.fluoscene import precompile_fluoscene, FluorObj, UscopeScene, clean_fluoscene_cache   # actual functionality for tests
-
-print("Path to a project:", fs.__file__, flush=True); actual_repo_imported = "site-packages" not in str(fs.__file__)
 
 # %% Actual tests
-if actual_repo_imported and __name__ == "__main__":
+if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_precise_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
     test_cropped_shapes = True; test_put_objects = False; test_generate_objects = False; test_overall_gen = False

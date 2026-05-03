@@ -14,7 +14,7 @@ import time
 
 
 # %% Function defs.
-def get_random_shape_props(mean_size: Union[Real, tuple], size_std: Union[Real, tuple]) -> Tuple[Real, Real, Real]:
+def get_random_shape_props(mean_size: Union[Real, tuple], size_std: Union[Real, tuple]) -> Tuple['str', Real, Real]:
     """
     Select object properties from the provided parameters.
 
@@ -33,6 +33,7 @@ def get_random_shape_props(mean_size: Union[Real, tuple], size_std: Union[Real, 
         Selected (shape_type, mean_size, size_std).
 
     """
+    shape_type: str; r: Real; r_std: Real
     shape_type = random.choice(['round', 'ellipse'])  # select between two supported types of objects
     # Define radius and radius std for round particles from the provided tuples for the ellipses (random choice between a and b)
     if isinstance(mean_size, tuple):
@@ -83,12 +84,14 @@ def get_random_max_intensity(intensity_range: tuple) -> Union[int, float]:
 
     """
     min_intensity, max_intensity = intensity_range  # assuming that only 2 values provided, if not - will throw an Exception
-    fl_intensity = 0   # default parameter
+    fl_intensity: Union[int, float]  # can be either of two types
     # Random selection of max intensity for the profile casting
     if isinstance(min_intensity, int) and isinstance(max_intensity, int):
         fl_intensity = random.randrange(min_intensity, max_intensity)  # 1 - default step
     elif isinstance(min_intensity, float) and isinstance(max_intensity, float):
         fl_intensity = random.uniform(a=min_intensity, b=max_intensity)
+    else:
+        fl_intensity = 0  # default int
     return fl_intensity
 
 
@@ -185,8 +188,8 @@ def print_out_elapsed_t(initial_timing: float, operation: str = "Operation"):
     """
     elapsed_time_ov = int(round(1000.0*(time.perf_counter() - initial_timing), 0))
     if elapsed_time_ov > 1000:
-        elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)
-        print(f"{operation} took: {elapsed_time_ov} seconds", flush=True)
+        elapsed_time_s = elapsed_time_ov*1E-3; elapsed_time_s = round(elapsed_time_s, 1)
+        print(f"{operation} took: {elapsed_time_s} seconds", flush=True)
     else:
         print(f"{operation} took: {elapsed_time_ov} milliseconds", flush=True)
 

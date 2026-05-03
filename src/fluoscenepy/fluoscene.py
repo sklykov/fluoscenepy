@@ -762,7 +762,7 @@ class UscopeScene:
         try:
             plt.imshow(self.image, cmap=color_map, origin='upper')
         except ValueError:
-            plt.imshow(self.image, cmap=plt.cm.viridis, origin='upper')
+            plt.imshow(self.image, cmap=plt.colormaps["viridis"], origin='upper')
         plt.axis('off'); plt.tight_layout()
 
     def clear_scene(self):
@@ -1465,7 +1465,7 @@ class FluorObj:
             try:
                 axes_img = plt.imshow(self.profile, cmap=color_map, origin='upper')
             except ValueError:
-                axes_img = plt.imshow(self.profile, cmap=plt.cm.viridis, origin='upper')
+                axes_img = plt.imshow(self.profile, cmap=plt.colormaps["viridis"], origin='upper')
             plt.axis('off'); plt.colorbar(); plt.tight_layout()
             plot_patch = True  # flag for plotting the patch (Circle or Ellipse)
             m_center, n_center = 0.0, 0.0

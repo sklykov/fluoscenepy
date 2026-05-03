@@ -1,4 +1,2 @@
-include CHANGELOG.md
-
-recursive-exclude src/fluoscenepy/case_studies *
-recursive-exclude src/fluoscenepy/readme_images *
+recursive-exclude tests *
+recursive-exclude src/fluoscenepy/tests *

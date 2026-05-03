@@ -578,19 +578,19 @@ if __name__ == "__main__":
     if test_ellipse_centered:
         a = 6.8; b = 2.69; j_shift = 0; i_shift = 0; shifts = (i_shift, j_shift); angle_grad = 10.0; angle = (angle_grad*np.pi)/180.0
         ellipse_centered = discrete_shaped_ellipse((a, b), angle, shifts)
-        plt.figure(figsize=figsizes); axes_img = plt.imshow(ellipse_centered, cmap=plt.cm.viridis); plt.tight_layout()
+        plt.figure(figsize=figsizes); axes_img = plt.imshow(ellipse_centered, cmap=plt.colormaps["viridis"]); plt.tight_layout()
         m_center, n_center = ellipse_centered.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
         axes_img.axes.add_patch(Ellipse((n_center, m_center), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
         axes_img.axes.plot(m_center, n_center, marker='.', linewidth=3.5, color='red')
     if test_ellipse_shifted:
         a = 6.8; b = 2.69; j_shift = -0.36; i_shift = 0.78; shifts = (j_shift, i_shift); angle_grad = 120.0; angle = (angle_grad*np.pi)/180.0
         ellipse_centered = discrete_shaped_ellipse((a, b), angle, shifts)
-        plt.figure(figsize=figsizes); axes_img = plt.imshow(ellipse_centered, cmap=plt.cm.viridis); plt.tight_layout()
+        plt.figure(figsize=figsizes); axes_img = plt.imshow(ellipse_centered, cmap=plt.colormaps["viridis"]); plt.tight_layout()
         m_center, n_center = ellipse_centered.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
         axes_img.axes.add_patch(Ellipse((n_center, m_center), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
         axes_img.axes.plot(n_center, m_center, marker='.', linewidth=3.5, color='red')
     if prepare_sample_image_intersections:
         i_shift = 0.0; j_shift = 0.0; disk_r = 1.0; disk1 = make_sample(radius=disk_r, center_shift=(i_shift, j_shift), test_plots=True)
-        plt.figure(figsize=figsizes); axes_img = plt.imshow(disk1, cmap=plt.cm.viridis); plt.tight_layout()
+        plt.figure(figsize=figsizes); axes_img = plt.imshow(disk1, cmap=plt.colormaps["viridis"]); plt.tight_layout()
         m_center, n_center = disk1.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
         axes_img.axes.add_patch(Circle((n_center, m_center), disk_r, edgecolor='red', facecolor='none'))
