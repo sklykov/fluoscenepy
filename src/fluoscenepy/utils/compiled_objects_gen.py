@@ -9,8 +9,9 @@ Wrapping by using @jit decorators from numba library.
 
 """
 # %% Imports
-import numpy as np
 from typing import Union
+
+import numpy as np
 
 # %% Checking and import the numba library for speeding up the calculation
 global numba_installed

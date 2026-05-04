@@ -49,6 +49,7 @@ version = {attr = "fluoscenepy.__version__"}  # Variable set in the __init__.py
 requires = ["setuptools>=75.0"]
 build-backend = "setuptools.build_meta"
 
+# Typing checks by mypy, not strict mode
 [tool.mypy]
 python_version = "3.11"
 warn_unused_configs = true  # mypy will warn if any of options below not valid
@@ -57,12 +58,31 @@ warn_unused_ignores = true  # warn about unused comments '# type: ignore'
 show_error_codes = true  # enables error code in a report
 pretty = true  # better formatted report in a console
 strict_equality = true  # checks proper usage of ==, !=, in
+check_untyped_defs = true  # mypy checks untyped expressions and tries to infer types
 exclude = [
     '^tests/',
     '^build/',
     '^dist/',
-    '^src/fluoscenepy/case_studies/'
+    '^src/fluoscenepy/case_studies/',
+	'^src/fluoscenepy/tests/'
 ]
 [[tool.mypy.overrides]]  # for ignoring warning about not checked imported libraries
 module = ["numba"]
 ignore_missing_imports = true
+
+# Formatting checks by the ruff linter
+[tool.ruff]
+line-length = 145  # my own preference
+indent-width = 4
+target-version = "py311"
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "SIM"]
+ignore = ["E702", "E402", # used in the IDE
+    "SIM108", # many ternany operator replacements in a code
+    "SIM113", # potentially can break logic in a loop
+]
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true

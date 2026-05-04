@@ -8,21 +8,31 @@ Main script for the 'fluoscenepy' package.
 
 """
 # %% Imports, module variables
+import logging
 import random
 import time
 import warnings
-from typing import Union, Optional, Tuple
 from pathlib import Path
-from numbers import Real
-import numpy as np
-import logging
+from typing import Optional, Tuple, Union
+
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.patches import Circle, Ellipse
+from numpy.typing import DTypeLike
+
+from .utils.comp_funcs import (
+    delete_coordinates_from_list,
+    get_ellipse_sizes,
+    get_radius_gaussian,
+    get_random_central_shifts,
+    get_random_max_intensity,
+    get_random_shape_props,
+    print_out_elapsed_t,
+    set_binary_mask_coords_in_loop,
+)
 
 # Local imports from a local folders - unified relative imports - this script is used in a library (package) context
 from .utils.raw_objects_gen import continuous_shaped_bead, discrete_shaped_bead, discrete_shaped_ellipse
-from .utils.comp_funcs import (get_random_shape_props, get_random_central_shifts, get_random_max_intensity, get_radius_gaussian,
-                               get_ellipse_sizes, print_out_elapsed_t, delete_coordinates_from_list, set_binary_mask_coords_in_loop)
 
 # Flag for using numba for compilation of computation methods
 numba_installed = False
@@ -35,8 +45,8 @@ except ModuleNotFoundError:
     pass
 
 if numba_installed:
-    from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
     from .utils.acc_comp_funcs import generate_coordinates_list, set_binary_mask_coordinates
+    from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
 
 
 # %% Scene (image) class def.
@@ -55,15 +65,16 @@ class UscopeScene:
     """
 
     # Class parameters
-    width: int = 4; height: int = 4; __warn_message: str = ""; max_pixel_value: Union[int, float] = 255; img_type = np.uint8
-    acceptable_img_types: list = ['uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64]
-    shape: tuple = (height, width); fluo_objects: list = []; shape_types = ['mixed', 'round', 'r', 'ellipse', 'el']
+    width: int = 4; height: int = 4; __warn_message: str = ""; max_pixel_value: Union[int, float, np.integer, np.floating] = 255
+    img_type: DTypeLike = np.uint8; acceptable_img_types: list = ['uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64]
+    shape: tuple = (height, width); fluo_objects: list = []; shape_types: list = ['mixed', 'round', 'r', 'ellipse', 'el']
     image: Optional[np.ndarray] = None  # now, image can be None as well as np.ndarray after generation
     __image_cleared: bool = True  # for tracking that the scene was cleared (zeroed)
     __available_coordinates: list = []; __binary_placement_mask: Optional[np.ndarray] = None
     denoised_image: Optional[np.ndarray] = None  # keep copy of an initial, free from noise image
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
-    __round_fl_obj = None; __ellipse_fl_obj = None  # placeholders for classes used for precompilation of methods by numba
+    # placeholders for classes used for precompilation of methods by numba
+    __round_fl_obj: Optional["FluorObj"] = None; __ellipse_fl_obj: Optional["FluorObj"] = None
     __cast_options: list = ["neg.norm.", "int8", "int16", "norm", "uint8", "uint16"]  # short identifiers for the supported casting options
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
@@ -97,7 +108,7 @@ class UscopeScene:
             raise ValueError(f"Provided dimensions ({width}x{height}) is less than 4")
         if width > 10000 or height > 10000:
             __warn_message = f"Provided dimensions ({width}x{height}) pixels are unrealistic for the common image"
-            warnings.warn(__warn_message)
+            warnings.warn(__warn_message, stacklevel=2)  # stacklevel=2 corresponds to a caller method, not this library line
         self.width = width; self.height = height
         # Check an image type
         if image_type not in self.acceptable_img_types:
@@ -121,9 +132,11 @@ class UscopeScene:
 
     # %% Objects specification / generation
     @classmethod
-    def get_random_objects(cls, mean_size: Union[Real, tuple], size_std: Union[Real, tuple], intensity_range: tuple,
+    def get_random_objects(cls, mean_size: Union[Union[int, float], Tuple[Union[int, float], Union[int, float]]],
+                           size_std: Union[Union[int, float], Tuple[Union[int, float], Union[int, float]]],
+                           intensity_range: Tuple[Union[int, float], Union[int, float]],
                            n_objects: int = 2, shapes: str = 'round', image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
-                           verbose_info: bool = False, accelerated: bool = False) -> tuple:
+                           verbose_info: bool = False, accelerated: bool = False) -> Tuple["FluorObj", ...]:
         """
         Generate objects with randomized shape sizes, for shape types: 'round', 'ellipse', 'mixed' (random choice between first two).
 
@@ -131,9 +144,9 @@ class UscopeScene:
 
         Parameters
         ----------
-        mean_size : Union[Real, tuple] \n
+        mean_size : Union[Union[int, float], tuple] \n
             Mean size(-s) of randomized objects. Integer or float is supposed to be used for round particles, tuple - for ellipse. \n
-        size_std : Union[Real, tuple] \n
+        size_std : Union[Union[int, float], tuple] \n
             Standard deviation of mean size(-s). \n
         intensity_range : tuple \n
             (Min, Max) intensities for randomized choice of the maximum intensity along the profile. \n
@@ -166,23 +179,19 @@ class UscopeScene:
         if shapes not in cls.shape_types:
             raise ValueError(f"Please provide the supported shape type for generation from a list: {cls.shape_types}")
         max_intensity = max(intensity_range); raise_exception = False  # define max provided intensity
-        if image_type == 'uint8' or image_type == np.uint8:
-            if max_intensity > np.iinfo(np.uint8).max:
-                raise_exception = True
-        elif image_type == 'uint16' or image_type == np.uint16:
-            if max_intensity > np.iinfo(np.uint16).max:
-                raise_exception = True
+        if image_type in ('uint8', np.uint8) and max_intensity > np.iinfo(np.uint8).max:
+            raise_exception = True
+        if image_type in ('uint16', np.uint16) and max_intensity > np.iinfo(np.uint16).max:
+            raise_exception = True
         if raise_exception:
             raise ValueError(f"Max intensity from the range {intensity_range} is incompatible with the provided image type {image_type}")
         fl_objects = []  # for storing generated objects
         r = None; r_std = None  # default parameters for round objects
         # Printout warning if the method called with parameters leading to the long calculations
-        if verbose_info and not accelerated:
-            if np.min(mean_size) >= 4.0 and n_objects >= 10:
-                print(f"***** Note that the overall generation will take more than ~ {round(1.075*n_objects, 1)} sec. *****", flush=True)
-        elif verbose_info and accelerated:
-            if np.min(mean_size) >= 4.0 and n_objects >= 34:
-                print(f"***** Note that the overall generation will take more than ~ {round(0.3*n_objects, 1)} sec. *****", flush=True)
+        if verbose_info and not accelerated and np.min(mean_size) >= 4.0 and n_objects >= 10:
+            print(f"***** Note that the overall generation will take more than ~ {round(1.075*n_objects, 1)} sec. *****", flush=True)
+        if verbose_info and accelerated and np.min(mean_size) >= 4.0 and n_objects >= 34:
+            print(f"***** Note that the overall generation will take more than ~ {round(0.3*n_objects, 1)} sec. *****", flush=True)
         # Generation loop
         for i in range(n_objects):
             if verbose_info:
@@ -192,28 +201,32 @@ class UscopeScene:
                 shape_type, r, r_std = get_random_shape_props(mean_size, size_std)
             else:
                 shape_type = shapes
+                if (shape_type == 'round' or shape_type == 'r') and (isinstance(mean_size, tuple) or isinstance(size_std, tuple)):
+                    _, r, r_std = get_random_shape_props(mean_size, size_std)
             # Random selection of object parameters: shifts, max intensity
             i_shift, j_shift = get_random_central_shifts(); fl_intensity = get_random_max_intensity(intensity_range)
             # Round shaped object generation
-            if shape_type == 'round' or shape_type == 'r':
-                radius = get_radius_gaussian(r, r_std, mean_size, size_std)  # Gaussian-distributed random value
+            if (shape_type == 'round' or shape_type == 'r') and isinstance(r, (int, float)) and isinstance(r_std, (int, float)):
+                radius = get_radius_gaussian(r=None, r_std=None, mean_size=r, size_std=r_std)  # Gaussian-distributed random value
                 # Generating the object and calculating its shape, cast and crop it
                 fl_object = FluorObj(typical_size=2.0*radius, center_shifts=(i_shift, j_shift)); fl_object.get_shape(accelerated=accelerated)
                 fl_object.crop_shape(); fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type)
                 fl_objects.append(fl_object)
             # Ellipse shaped object generation
-            elif shape_type == 'ellipse' or shape_type == 'el':
+            elif (shape_type == 'ellipse' or shape_type == 'el') and isinstance(mean_size, tuple) and isinstance(size_std, tuple):
                 ellipse_sizes = get_ellipse_sizes(mean_size, size_std)
                 fl_object = FluorObj(typical_size=ellipse_sizes, center_shifts=(i_shift, j_shift), shape_type='ellipse')
                 fl_object.get_shape(accelerated=accelerated); fl_object.crop_shape()  # calculate normalized shape and crop it
                 fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
+            else:
+                raise ValueError("\nSome of input variables combination is not valid:", shape_type, mean_size, size_std)
             if verbose_info:
                 print_out_elapsed_t(t1, operation=f"Generation of obj. #{i+1} out of {n_objects}")
         if verbose_info:
             print_out_elapsed_t(t_ov_1, operation="Overall generation")
         return tuple(fl_objects)
 
-    def get_objects_acc(self, mean_size: Union[Real, tuple], size_std: Union[Real, tuple], intensity_range: tuple,
+    def get_objects_acc(self, mean_size: Union[Union[int, float], tuple], size_std: Union[Union[int, float], tuple], intensity_range: tuple,
                         n_objects: int = 2, shapes: str = 'round', image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
                         verbose_info: bool = False) -> tuple:
         """
@@ -224,9 +237,9 @@ class UscopeScene:
 
         Parameters
         ----------
-        mean_size : Union[Real, tuple]  \n
+        mean_size : Union[Union[int, float], tuple]  \n
             Mean size(-s) of randomized objects. Integer or float is supposed to be used for round particles, tuple - for ellipse. \n
-        size_std : Union[Real, tuple]  \n
+        size_std : Union[Union[int, float], tuple]  \n
             Standard deviation of mean size(-s). \n
         intensity_range : tuple  \n
             (Min, Max) intensities for randomized choice of the maximum intensity along the profile.  \n
@@ -259,12 +272,10 @@ class UscopeScene:
         if not numba_installed:
             raise ValueError("Method can be called if only 'numba' package is installed")
         max_intensity = max(intensity_range); raise_exception = False  # define max provided intensity
-        if image_type == 'uint8' or image_type == np.uint8:
-            if max_intensity > np.iinfo(np.uint8).max:
-                raise_exception = True
-        elif image_type == 'uint16' or image_type == np.uint16:
-            if max_intensity > np.iinfo(np.uint16).max:
-                raise_exception = True
+        if image_type in ('uint8', np.uint8) and max_intensity > np.iinfo(np.uint8).max:
+            raise_exception = True
+        if image_type in ('uint16', np.uint16) and max_intensity > np.iinfo(np.uint16).max:
+            raise_exception = True
         if raise_exception:
             raise ValueError(f"Max intensity from the range {intensity_range} is incompatible with the provided image type {image_type}")
         # Generation parameters
@@ -279,11 +290,13 @@ class UscopeScene:
                 shape_type, r, r_std = get_random_shape_props(mean_size, size_std)
             else:
                 shape_type = shapes
+                if (shape_type == 'round' or shape_type == 'r') and (isinstance(mean_size, tuple) or isinstance(size_std, tuple)):
+                    _, r, r_std = get_random_shape_props(mean_size, size_std)
             # Random selection of object parameters: shifts, max intensity
             i_shift, j_shift = get_random_central_shifts(); fl_intensity = get_random_max_intensity(intensity_range)
             # Round shaped object generation
-            if shape_type == 'round' or shape_type == 'r':
-                radius = get_radius_gaussian(r, r_std, mean_size, size_std)  # Gaussian-distributed random value
+            if (shape_type == 'round' or shape_type == 'r') and isinstance(r, (int, float)) and isinstance(r_std, (int, float)):
+                radius = get_radius_gaussian(r=None, r_std=None, mean_size=r, size_std=r_std)  # Gaussian-distributed random value
                 # Generating the object and calculating its shape, cast and crop it
                 fl_object = FluorObj(typical_size=2.0*radius, center_shifts=(i_shift, j_shift)); fl_object.get_shape(accelerated=True)
                 fl_object.crop_shape(); fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type)
@@ -294,6 +307,8 @@ class UscopeScene:
                 fl_object = FluorObj(typical_size=ellipse_sizes, center_shifts=(i_shift, j_shift), shape_type='ellipse')
                 fl_object.get_shape(accelerated=True); fl_object.crop_shape()  # calculate normalized shape and crop it
                 fl_object.get_casted_shape(max_pixel_value=fl_intensity, image_type=image_type); fl_objects.append(fl_object)
+            else:
+                 raise ValueError("\nSome of input variables combination is not valid:", shape_type, mean_size, size_std)
             if verbose_info:
                 print_out_elapsed_t(t1, operation=f"Generation of obj. #{i+1} out of {n_objects}")
         if verbose_info:
@@ -318,7 +333,7 @@ class UscopeScene:
         if not self.methods_precompiled:
             if verbose_info:
                 t_ov_1 = time.perf_counter()
-            if self.__round_fl_obj is None or self.__ellipse_fl_obj:
+            if self.__round_fl_obj is None or self.__ellipse_fl_obj is None:
                 self.__round_fl_obj = FluorObj(typical_size=2.02, center_shifts=(0.1, -0.2))
                 self.__ellipse_fl_obj = FluorObj(typical_size=(2.02, 1.52, np.pi / 3.0), center_shifts=(-0.1, 0.2), shape_type='ellipse')
             self.__round_fl_obj.get_shape(accelerated=True); self.__ellipse_fl_obj.get_shape(accelerated=True)
@@ -354,9 +369,9 @@ class UscopeScene:
             Generated objects.
 
         """
-        fl_objects = []; min_intensity, max_intensity = intensity_range
+        fl_objects = []; min_intensity, max_intensity = intensity_range; fl_intensity: Union[int, float]
         shape_types = FluorObj.valuable_round_shapes[:]; random.shuffle(shape_types)
-        for i in range(n_objects):
+        for _ in range(n_objects):
             # Random selection of central shifts for placement
             i_shift = round(random.random(), 3); j_shift = round(random.random(), 3)  # random generation of central pixel shifts
             # Checking that shifts are generated in the subpixel range and correcting it if not
@@ -385,8 +400,8 @@ class UscopeScene:
         return tuple(fl_objects)
 
     # %% Randomly assigning coordinates for objects
-    def set_random_places(self, fluo_objects: tuple = (), overlapping: bool = True, touching: bool = True,
-                          only_within_scene: bool = False, verbose_info: bool = False) -> tuple:
+    def set_random_places(self, fluo_objects: Tuple["FluorObj", ...] = (), overlapping: bool = True, touching: bool = True,
+                          only_within_scene: bool = False, verbose_info: bool = False) -> Tuple["FluorObj", ...]:
         """
         Set random coordinates within scene (or partially outside) for provided objects.
 
@@ -414,7 +429,8 @@ class UscopeScene:
             With the placed objects.
 
         """
-        if len(fluo_objects) > 0:
+        if len(fluo_objects) > 0 and self.image is not None:
+            fluo_objects_l = list(fluo_objects)
             # For making verbose information printouts, check the time performance of placement logic
             if verbose_info:
                 t1 = time.perf_counter()
@@ -425,20 +441,18 @@ class UscopeScene:
                 if not touching:
                     additional_border = 1  # additional 1 pixel for excluding the pixels close to the object borders
             # If only_within_scene, sort out the objects based on their sizes and place first the largest one, if not - the smallest one
-            if not overlapping or (overlapping and only_within_scene):
-                fluo_objects = list(fluo_objects)  # convert for applying embedded sorting algorithm
             if only_within_scene:
-                fluo_objects.sort(reverse=True)
+                fluo_objects_l.sort(reverse=True)
             elif not overlapping and not only_within_scene:
-                fluo_objects.sort()
+                fluo_objects_l.sort()
             # Printing out the warning messages (obtained for some useful cases and flags)
-            if len(fluo_objects) > 1 and verbose_info and fluo_objects[0].profile is not None:
-                h_fl_obj, w_fl_obj = fluo_objects[0].profile.shape  # get the largest object sizes
-                if len(fluo_objects) >= 5 or (h_fl_obj > 10 and w_fl_obj > 10):
+            if len(fluo_objects_l) > 1 and verbose_info and fluo_objects_l[0].profile is not None:
+                h_fl_obj, w_fl_obj = fluo_objects_l[0].profile.shape  # get the largest object sizes
+                if len(fluo_objects_l) >= 5 or (h_fl_obj > 10 and w_fl_obj > 10):
                     if not numba_installed:
                         print("NOTE: Placing algorithm can take quite a long time (depending on the size of objects and scene). \n"
                               + "For acceleration of it install library 'numba' with the recommended version >= 0.57.1", flush=True)
-                    print(f"***** Placing of {len(fluo_objects)} objects started *****", flush=True)
+                    print(f"***** Placing of {len(fluo_objects_l)} objects started *****", flush=True)
             if verbose_info and not overlapping:
                 if not numba_installed:
                     if h*w > 35000:
@@ -448,7 +462,7 @@ class UscopeScene:
                         print("Note that placing algorithm can take long time, starting from several dozens of seconds", flush=True)
             # Placing loop for provided objects (set random placing coordinates of the upper left pixel for the objects)
             placed_objects = 0  # for printing out the number of placed objects
-            for fluo_obj in fluo_objects:
+            for fluo_obj in fluo_objects_l:
                 if fluo_obj.profile is not None:
                     if verbose_info:
                         t_obj = time.perf_counter(); print(f"Started placing of #{placed_objects+1} object", flush=True)
@@ -468,7 +482,7 @@ class UscopeScene:
                         # Not overlapping, below - place the largest object and create the mask for preventing the overlapping
                         if not overlapping:
                             # Generate the meshgrid of all available for placing coordinates (depending on the placement flag)
-                            if not only_within_scene and len(fluo_objects) > 1:
+                            if not only_within_scene and len(fluo_objects_l) > 1:
                                 if not numba_installed:
                                     self.__available_coordinates = [(i_a, j_a) for i_a in range(i_smallest, i_largest)
                                                                     for j_a in range(j_smallest, j_largest)]
@@ -487,7 +501,7 @@ class UscopeScene:
                                     self.__available_coordinates = generate_coordinates_list(i_smallest, h-2, j_smallest, w-2)
                                     self.__restricted_coordinates = generate_coordinates_list(i_smallest, i_largest, j_smallest, j_largest)
                             # Generate the binary mask (instead of the real image or scene) for placing more than 1 object
-                            if len(fluo_objects) > 1:
+                            if len(fluo_objects_l) > 1:
                                 self.__binary_placement_mask = np.zeros(shape=self.image.shape, dtype='uint8')
                                 if not numba_installed:
                                     self.__binary_placement_mask = set_binary_mask_coords_in_loop(self.__binary_placement_mask,
@@ -520,7 +534,7 @@ class UscopeScene:
                             random.shuffle(self.__available_coordinates)  # shuffle available coordinates
                         fluo_obj.set_coordinates((i_obj, j_obj)); placed_objects += 1  # set random place of the object within the image
                         if verbose_info:
-                            print("# of placed objects:", placed_objects, "out of", len(fluo_objects), flush=True)
+                            print("# of placed objects:", placed_objects, "out of", len(fluo_objects_l), flush=True)
                             print_out_elapsed_t(t_obj, operation="Placing 1st object")
                     else:
                         # Trying to place the object in the randomly selected from remaining coordinates place and checking if there is no
@@ -616,14 +630,13 @@ class UscopeScene:
                             fluo_obj.set_coordinates((i_obj, j_obj))  # if found place, place the object
                             filtered_fluo_obj.append(fluo_obj); placed_objects += 1  # collect for returning only placed objects
                             if verbose_info:
-                                print("# of placed objects:", placed_objects, "out of", len(fluo_objects), flush=True)
+                                print("# of placed objects:", placed_objects, "out of", len(fluo_objects_l), flush=True)
                                 print_out_elapsed_t(t_obj, operation=f"Placing #{placed_objects} object")
             if not overlapping:
-                fluo_objects = tuple(filtered_fluo_obj)  # convert list -> tuple for returning only placed objects
-                # plt.figure("Binary Placement Mask"); plt.imshow(self.__binary_placement_mask)  # plot the occupied places by the objects
+                fluo_objects_l = filtered_fluo_obj.copy()  # convert list -> tuple for returning only placed objects
             if verbose_info:
                 print_out_elapsed_t(t1, operation=f"Placing of {placed_objects} objects")
-        return fluo_objects
+        return tuple(fluo_objects_l)
 
     # %% Put objects on the scene
     def put_objects_on(self, fluo_objects: tuple = (), save_objects: bool = True, save_only_objects_inside: bool = False,
@@ -718,13 +731,14 @@ class UscopeScene:
             self.put_objects_on(fluo_objects=tuple(self.fluo_objects), save_objects=False)
         elif not self.__image_cleared:
             if len(self.__warn_message) == 0:
-                self.__warn_message = "\nThe scene is not blank (cleared), cannot recreate the scene"; warnings.warn(self.__warn_message)
+                self.__warn_message = "\nThe scene is not blank (cleared), cannot recreate the scene"
+                warnings.warn(self.__warn_message, stacklevel=2)
             elif self.__warn_message == "\nThe scene is not blank (cleared), cannot recreate the scene":
                 self.__warn_message = ""
         elif len(self.fluo_objects) == 0:
             if len(self.__warn_message) == 0:
                 self.__warn_message = "\nThere are no stored 'fluorescent' objects within this class instance"
-                warnings.warn(self.__warn_message)
+                warnings.warn(self.__warn_message, stacklevel=2)
             elif self.__warn_message == "\nThere are no stored 'fluorescent' objects within this class instance":
                 self.__warn_message = ""
 
@@ -747,23 +761,24 @@ class UscopeScene:
         None.
 
         """
-        h, w = self.image.shape; height_width_ratio = h/w; default_image_size = 5.8; additional_id = ""
-        if len(str_id) == 0:
-            str_id = str(random.randint(1, 1000))
-        elif unique_plot_id:
-            additional_id = str(random.randint(1, 1000))
-        if not plt.isinteractive():
-            plt.ion()
-        if self.__image_cleared:
-            figure_name = "Blank UscopeScene " + str_id + " " + additional_id
-        else:
-            figure_name = "UscopeScene " + str_id + " " + additional_id
-        plt.figure(figure_name, figsize=(default_image_size, default_image_size*height_width_ratio))
-        try:
-            plt.imshow(self.image, cmap=color_map, origin='upper')
-        except ValueError:
-            plt.imshow(self.image, cmap=plt.colormaps["viridis"], origin='upper')
-        plt.axis('off'); plt.tight_layout()
+        if self.image is not None:
+            h, w = self.image.shape; height_width_ratio = h/w; default_image_size = 5.8; additional_id = ""
+            if len(str_id) == 0:
+                str_id = str(random.randint(1, 1000))
+            elif unique_plot_id:
+                additional_id = str(random.randint(1, 1000))
+            if not plt.isinteractive():
+                plt.ion()
+            if self.__image_cleared:
+                figure_name = "Blank UscopeScene " + str_id + " " + additional_id
+            else:
+                figure_name = "UscopeScene " + str_id + " " + additional_id
+            plt.figure(figure_name, figsize=(default_image_size, default_image_size*height_width_ratio))
+            try:
+                plt.imshow(self.image, cmap=color_map, origin='upper')
+            except ValueError:
+                plt.imshow(self.image, cmap=plt.colormaps["viridis"], origin='upper')
+            plt.axis('off'); plt.tight_layout()
 
     def clear_scene(self):
         """
@@ -791,8 +806,8 @@ class UscopeScene:
         return self.__image_cleared
 
     # %% Adding shot and detector noise
-    def add_noise(self, seed: int = None, mean_g: Union[int, float, None] = None,
-                  sigma_g: Union[int, float, None] = None, gain_p: float = 1.0) -> np.ndarray:
+    def add_noise(self, seed: Optional[int] = None, mean_g: Union[int, float, None] = None,
+                  sigma_g: Union[int, float, None] = None, gain_p: float = 1.0) -> Optional[np.ndarray]:
         """
         Add pixelwise at first Poisson (signal dependent shot noise) and after background (Gaussian or detector) noise.
 
@@ -821,15 +836,15 @@ class UscopeScene:
 
         Returns
         -------
-        numpy.ndarray \n
-            The scene added shot (Poisson) and detector (Gaussian) noises. \n
+        numpy.ndarray | None \n
+            The scene added shot (Poisson) and detector (Gaussian) noises if image is provided. \n
 
         """
         if seed is None:
             rng = np.random.default_rng()
         else:
             rng = np.random.default_rng(seed)
-        if not self.__image_cleared:
+        if not self.__image_cleared and self.image is not None:
             # Add the Gaussian noise (background)
             if mean_g is None:
                 mean_g = 0.125*np.max(self.image)  # 12.5% of the max value
@@ -841,7 +856,7 @@ class UscopeScene:
             h, w = self.image.shape; raw_pixels = np.zeros(shape=self.image.shape)
             if not self.__noise_added:
                 self.denoised_image = self.image.copy()  # copy initial scene without noise
-            else:
+            elif self.denoised_image is not None:
                 self.image = self.denoised_image.copy()  # restore the initial image by the copying the content of the denoised image
             # Generate and add noise pixelwise
             for i in range(h):
@@ -861,14 +876,14 @@ class UscopeScene:
             self.__noise_added = True  # switch the flag for tracking that the noise has been added
         return self.image
 
-    def remove_noise(self) -> np.ndarray:
+    def remove_noise(self) -> Optional[np.ndarray]:
         """
         Remove added previously noise by copying the stored in 'denoise_image' pixel content.
 
         Returns
         -------
-        numpy.ndarray \n
-            Initial scene without noise. \n
+        numpy.ndarray | None \n
+            Initial scene without noise if it was saved. \n
 
         """
         if self.__noise_added and self.denoised_image is not None:
@@ -876,7 +891,7 @@ class UscopeScene:
         return self.image
 
     @staticmethod
-    def noise2image(image: np.ndarray, seed: int = None, mean_g: Union[int, float, None] = None,
+    def noise2image(image: np.ndarray, seed: Optional[int] = None, mean_g: Union[int, float, None] = None,
                     sigma_g: Union[int, float, None] = None, gain_p: float = 1.0) -> np.ndarray:
         """
         Add pixelwise at first Poisson (signal dependent shot noise) and after background (Gaussian or detector) noise.
@@ -918,6 +933,7 @@ class UscopeScene:
 
         """
         source_image = np.copy(image)  # to guarantee that input image is not modified
+        max_pixel_value: Union[np.integer, float]
         # Initialize random generator using provided seed
         if seed is None:
             rng = np.random.default_rng()
@@ -1071,7 +1087,7 @@ class UscopeScene:
                 _convers = "Unchanged pixel values, casted to np.float64"
             if not suppress_warnings:
                 _warn = f"\nImage is either flat (constant) or contains only noise, report: \n{_info}.\nConversion used: {_convers}"
-                warnings.warn(_warn)
+                warnings.warn(_warn, stacklevel=2)
         return target
 
     @staticmethod
@@ -1149,22 +1165,23 @@ class FluorObj:
     __external_image_sizes: tuple = (0, 0)   # sizes of an external image coordinates of the upper left pixel
     within_image: bool = False  # flag for checking that the profile is still within the image
 
-    def __init__(self, typical_size: Union[Real, tuple], center_shifts: tuple = (0.0, 0.0), shape_type: str = 'round',
+    def __init__(self, typical_size: Union[Union[int, float], Tuple[Union[int, float], Union[int, float], float]],
+                 center_shifts: Tuple[Union[int, float], Union[int, float]] = (0.0, 0.0), shape_type: str = 'round',
                  border_type: str = 'precise', shape_method: str = ''):
-        f"""
+        """
         Initialize the class representation of a fluorescent object.
 
         The difference between used parameters can be observed by plotting of the calculated shapes (profiles) by get_shape() method.
 
         Parameters
         ----------
-        typical_size : Union[Real, tuple] \n
+        typical_size : Union[Union[int, float], tuple] \n
             Typical sizes of the object, e.g. for a bead - diameter (float or int - Real number in general),
             for ellipse - tuple with axes a, b and angle in radians (3 values). \n
         center_shifts : tuple, optional \n
             Shifts in pixels of the object center, should be less than 1px. The default is (0.0, 0.0). \n
         shape_type : str, optional \n
-            Supported shape types: {self.__acceptable_shape_types}. \n
+            Supported shape types: ['round', 'r', 'ellipse', 'el']. \n
             Currently implemented: 'round' or 'r' - for the circular bead object and 'ellipse' or 'el' - for the ellipse object.
             The default is 'round'. \n
         border_type : str, optional \n
@@ -1174,7 +1191,7 @@ class FluorObj:
             the border (e.g., circular) of an object. \n
             Note that 'computed' type can be used only for 'round' objects. The default is 'precise'. \n
         shape_method : str, optional \n
-            Shape method calculation, supported ones: {self.__acceptable_shape_methods}. The default is ''. \n
+            Shape method calculation, supported ones: ['round', 'r', 'ellipse', 'el']. The default is ''. \n
 
         Raises
         ------
@@ -1184,7 +1201,6 @@ class FluorObj:
         Returns
         -------
         None.
-
         """
         # Sanity checks of the input values
         if shape_type in self.__acceptable_shape_types:
@@ -1196,14 +1212,16 @@ class FluorObj:
         else:
             raise ValueError(f"Provided border type '{border_type}' not in acceptable list {self.__acceptable_border_types}")
         # Checking typical sizes depending on the shape type
-        if self.shape_type == "round" or self.shape_type == "r":
+        if (shape_type == 'round' or shape_type == 'r') and isinstance(typical_size, (int, float)):
             typical_size = float(typical_size)  # assuming that the input parameter can be converted to the float type
             if typical_size < 1.0:
                 raise ValueError(f"Expected typical size (radius) should be larger than 1px, provided: {typical_size}")
             else:
                 self.radius = 0.5*typical_size
+        elif (shape_type == 'round' or shape_type == 'r') and isinstance(typical_size, tuple):
+            raise ValueError("\nFor 'round'-shaped objects expected typical size should be int or float, not tuple")
         else:
-            if self.shape_type == "ellipse" or self.shape_type == "el":
+            if (self.shape_type == "ellipse" or self.shape_type == "el") and isinstance(typical_size, tuple):
                 self.border_type = 'precise'  # default border type for ellipse shape calculation
                 if len(typical_size) != 3:
                     raise ValueError("For ellipse particle expected length of typical size tuple is equal 3: (a, b, angle)")
@@ -1216,10 +1234,13 @@ class FluorObj:
                         raise ValueError("Expected angle should be in the range of [-2pi, 2pi]")
                     self.typical_sizes = typical_size
             else:
-                if len(typical_size) <= 2:
-                    raise ValueError("For curved particle expected length of typical size tuple is more than 2")
+                if isinstance(typical_size, tuple):
+                    if len(typical_size) <= 2:
+                        raise ValueError("For curved particle expected length of typical size tuple is more than 2")
+                    else:
+                        self.typical_sizes = typical_size
                 else:
-                    self.typical_sizes = typical_size
+                    raise ValueError("For curved particle expected typical size should be tuple with 3 or more defining sizes")
             if self.shape_type == "el":
                 self.explicit_shape_name = 'ellipse'
         # Assigning the explicit border type for making full naming for plots
@@ -1264,15 +1285,13 @@ class FluorObj:
             else:
                 raise ValueError(f"One of the shifts '{center_shifts}' are more than 1px, but they are expected to be in the subpixel range")
 
-    def get_shaping_functions(self) -> str:
+    def get_shaping_functions(self):
         """
         Print out the implemented methods acceptable for the 'shape_method' parameter.
 
         Returns
         -------
-        str \n
-            Printed out composed informational string. \n
-
+        None.
         """
         methods = ""; i = 0
         while i <= len(self.__acceptable_shape_methods)-1:
@@ -1281,10 +1300,10 @@ class FluorObj:
         info_str = ("The implemented types of continuous bell shape functions or acceptable variables for the 'shape_method' parameter "
                     + "(first - the long naming followed by the shortened version): \n" + methods)
         print(info_str, flush=True)
-        return info_str
 
     # %% Calculate and plot shape
-    def get_shape(self, center_shifts: tuple = None, accelerated: bool = False) -> Union[np.ndarray, None]:
+    def get_shape(self, center_shifts: Optional[Tuple[Union[int, float], Union[int, float]]] = None,
+                  accelerated: bool = False) -> Optional[np.ndarray]:
         """
         Calculate and return 2D intensity normalized (to the range [0.0, 1.0]) distribution of the object shape.
 
@@ -1320,7 +1339,7 @@ class FluorObj:
                 self.center_shifts = center_shifts
             else:
                 raise ValueError(f"One of the shifts '{center_shifts}' are more than 1px, "
-                                 + "but the shifts are expected to be in the subpixel range")
+                                 + "but the shifts are expected to be in a subpixel range")
         if (self.shape_type == "round" or self.shape_type == "r") and (self.border_type == "computed" or self.border_type == "co"):
             self.profile = continuous_shaped_bead(self.radius, self.center_shifts, bead_type=self.shape_method)
         elif (self.shape_type == "round" or self.shape_type == "r") and (self.border_type == "precise" or self.border_type == "pr"):
@@ -1331,7 +1350,7 @@ class FluorObj:
             else:
                 if accelerated and not numba_installed:
                     __warn_message = "\nAcceleration isn't possible because 'numba' library not installed in the current environment"
-                    warnings.warn(__warn_message)
+                    warnings.warn(__warn_message, stacklevel=2)
                 self.profile = discrete_shaped_bead(self.radius, self.center_shifts)
         elif self.shape_type == "ellipse" or self.shape_type == "el":
             sizes = (self.typical_sizes[0], self.typical_sizes[1]); ellipse_angle = self.typical_sizes[2]
@@ -1342,14 +1361,15 @@ class FluorObj:
             else:
                 if accelerated and not numba_installed:
                     __warn_message = "\nAcceleration isn't possible because 'numba' library not installed in the current environment"
-                    warnings.warn(__warn_message)
+                    warnings.warn(__warn_message, stacklevel=2)
                 self.profile = discrete_shaped_ellipse(sizes, ellipse_angle, self.center_shifts)
         else:
             raise NotImplementedError("This set of input parameters hasn't yet been implemented")
         self.__profile_cropped = False  # set it to the default value, the profile is uncropped
+        return self.profile
 
     def get_casted_shape(self, max_pixel_value: Union[int, float],
-                         image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') -> Union[np.ndarray, None]:
+                         image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') -> Optional[np.ndarray]:
         """
         Calculate cast from the computed normalized object shape.
 
@@ -1375,17 +1395,17 @@ class FluorObj:
             raise ValueError(f"Provided image type '{image_type}' not in the acceptable list of types: "
                              + str(UscopeScene.acceptable_img_types))
         if self.profile is not None:
-            if image_type == 'uint8' or image_type is np.uint8:
+            if image_type in ('uint8', np.uint8):
                 if max_pixel_value > np.iinfo(np.uint8).max or max_pixel_value < 0:
                     raise ValueError(f"Provided max pixel value {max_pixel_value} isn't compatible with a provided image type: {image_type}")
                 self.image_type = image_type; self.casted_profile = np.round(max_pixel_value * self.profile, 0).astype(np.uint8)
                 return self.casted_profile
-            elif image_type == 'uint16' or image_type is np.uint16:
+            elif image_type in ('uint16', np.uint16):
                 if max_pixel_value > np.iinfo(np.uint16).max or max_pixel_value < 0:
                     raise ValueError(f"Provided max pixel value {max_pixel_value} isn't compatible with a provided image type: {image_type}")
                 self.image_type = image_type; self.casted_profile = np.round(max_pixel_value*self.profile, 0).astype(np.uint16)
                 return self.casted_profile
-            elif image_type == 'float' or image_type is np.float64:
+            elif image_type in ('float', np.float64):
                 self.image_type = image_type; self.casted_profile = max_pixel_value*self.profile
                 return self.casted_profile
             else:
@@ -1393,14 +1413,14 @@ class FluorObj:
         else:
             self.casted_profile = None; return self.casted_profile
 
-    def crop_shape(self) -> np.ndarray:
+    def crop_shape(self) -> Optional[np.ndarray]:
         """
         Crop zero intensity parts (borders) of the computed profile.
 
         Returns
         -------
-        numpy.ndarray \n
-            2D cropped profile. \n
+        numpy.ndarray | None \n
+            2D cropped profile if initial profile has been generated before. \n
 
         """
         if self.profile is not None and not self.__profile_cropped:  # checking that the profile has been calculated and not cropped yet
@@ -1572,9 +1592,8 @@ class FluorObj:
                     k = 0
                     for j_c in range(j, j+w):
                         m = 0
-                        if 0 <= i_c < h_image and 0 <= j_c < w_image:
-                            if self.profile[k, m] > 0.0:
-                                additional_containing_check = True; break
+                        if 0 <= i_c < h_image and 0 <= j_c < w_image and self.profile[k, m] > 0.0:
+                            additional_containing_check = True; break
                         m += 1
                     if additional_containing_check:
                         break
@@ -1653,7 +1672,7 @@ def precompile_fluoscene():
         probe_obj = FluorObj(shape_type='ellipse', typical_size=(2.65, 2.0, np.pi/6.0)); probe_obj.get_shape(accelerated=True); del probe_obj
     else:
         __warn_message = "\nAcceleration isn't possible because 'numba' library not installed in the current environment"
-        warnings.warn(__warn_message)
+        warnings.warn(__warn_message, stacklevel=2)
 
 
 def clean_fluoscene_cache() -> bool:

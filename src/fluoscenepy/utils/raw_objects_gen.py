@@ -7,11 +7,13 @@ Script with various object profiles generation functions.
 
 """
 # %% Imports
-import numpy as np
+from math import cos, e, sin
+from typing import Tuple, Union  # for making type hints for the package compliant with Python >= 3.8
+
 import matplotlib.pyplot as plt
-from math import e, cos, sin
-from typing import Union  # for making type hints for the package compliant with Python >= 3.8
+import numpy as np
 from matplotlib.patches import Circle, Ellipse
+
 # Note that type hints line int | float works for Python >= 3.10
 
 
@@ -42,7 +44,8 @@ def distance_f(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.n
 
 
 def ellipse_equation(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float],
-                     j_centre: Union[int, float], a: Union[int, float], b: Union[int, float], angle: Union[int, float]) -> float:
+                     j_centre: Union[int, float], a: Union[int, float], b: Union[int, float],
+                     angle: Union[int, float]) ->  Union[float, np.ndarray]:
     """
     Calculate the ellipse equation ratio for the defining if the point (i_px, j_px) lays inside an ellipse.
 
@@ -390,9 +393,8 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
             elif bead_type == 'undersampled circle' or bead_type == 'uncir':
                 if distance < r:  # the border pixels (observed when the bead is centered) are removed, only with distances less than r saved
                     img[i, j] = 1.0
-            elif bead_type == 'circle' or bead_type == 'c':
-                if distance <= r + 1E-6:  # the border pixels laying in the proximity saved as well
-                    img[i, j] = 1.0
+            elif (bead_type == 'circle' or bead_type == 'c') and distance <= r + 1E-6:
+                img[i, j] = 1.0  # the border pixels laying in the proximity saved as well
     # Normalization of profile
     if (bead_type == 'derivative of logistic func.' or bead_type == 'dlogf' or bead_type == 'bump square' or bead_type == 'bump2'
        or bead_type == 'bump cube' or bead_type == 'bump3' or bead_type == 'bump ^8' or bead_type == 'bump8'):
@@ -477,17 +479,18 @@ def discrete_shaped_bead(r: float, center_shifts: tuple) -> np.ndarray:
 
 
 # %% 2D shape representation calculation for the object with ellipse shape
-def discrete_shaped_ellipse(sizes: tuple, angle: float, center_shifts: tuple, verbose_plots: bool = False) -> np.ndarray:
+def discrete_shaped_ellipse(sizes: Tuple[Union[int, float], Union[int, float]], angle: float,
+                            center_shifts: Tuple[Union[int, float], Union[int, float]], verbose_plots: bool = False) -> np.ndarray:
     """
     Calculate ellipse shape project on the pixels.
 
     Parameters
     ----------
-    sizes : tuple
+    sizes : Tuple[Real, Real]
         Sizes a, b for an ellipse.
     angle : float
         Angle (counter-clockwise) between b and X axes.
-    center_shifts : tuple
+    center_shifts : Tuple[Real, Real]
         Pixelwise shifts of an ellipse center.
     verbose_plots : bool, optional
         Plotting of border sections of an ellipse. The default is False.
@@ -500,7 +503,7 @@ def discrete_shaped_ellipse(sizes: tuple, angle: float, center_shifts: tuple, ve
     """
     a, b = sizes  # from the definition of an ellipse: length of 2 axis
     max_d = max(a, b)  # for defining the largest and smallest axis of an ellipse
-    max_size = int(round(1.25*max_d, 0))  # default size for the profile
+    max_size = int(round(1.25*max_d))  # default size for the profile
     x_shift, y_shift = center_shifts  # unpacking the shift of the object center
     if abs(y_shift) > 0.0 or abs(x_shift) > 0.0:
         max_size += 1
@@ -583,14 +586,14 @@ if __name__ == "__main__":
         axes_img.axes.add_patch(Ellipse((n_center, m_center), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
         axes_img.axes.plot(m_center, n_center, marker='.', linewidth=3.5, color='red')
     if test_ellipse_shifted:
-        a = 6.8; b = 2.69; j_shift = -0.36; i_shift = 0.78; shifts = (j_shift, i_shift); angle_grad = 120.0; angle = (angle_grad*np.pi)/180.0
-        ellipse_centered = discrete_shaped_ellipse((a, b), angle, shifts)
+        a = 6.8; b = 2.69; j_shift = -0.36; i_shift = 0.78; shifts_fl = (j_shift, i_shift); angle_grad = 120.0
+        angle = (angle_grad*np.pi)/180.0; ellipse_centered = discrete_shaped_ellipse((a, b), angle, shifts_fl)
         plt.figure(figsize=figsizes); axes_img = plt.imshow(ellipse_centered, cmap=plt.colormaps["viridis"]); plt.tight_layout()
-        m_center, n_center = ellipse_centered.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
-        axes_img.axes.add_patch(Ellipse((n_center, m_center), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
+        m_center, n_center = ellipse_centered.shape; m_center_fl = m_center // 2 + i_shift; n_center_fl = n_center // 2 + j_shift
+        axes_img.axes.add_patch(Ellipse((n_center_fl, m_center_fl), a, b, angle=-angle_grad, edgecolor='red', facecolor='none', linewidth=1.75))
         axes_img.axes.plot(n_center, m_center, marker='.', linewidth=3.5, color='red')
     if prepare_sample_image_intersections:
         i_shift = 0.0; j_shift = 0.0; disk_r = 1.0; disk1 = make_sample(radius=disk_r, center_shift=(i_shift, j_shift), test_plots=True)
         plt.figure(figsize=figsizes); axes_img = plt.imshow(disk1, cmap=plt.colormaps["viridis"]); plt.tight_layout()
-        m_center, n_center = disk1.shape; m_center = m_center // 2 + i_shift; n_center = n_center // 2 + j_shift
-        axes_img.axes.add_patch(Circle((n_center, m_center), disk_r, edgecolor='red', facecolor='none'))
+        m_center, n_center = disk1.shape; m_center_fl = m_center // 2 + i_shift; n_center_fl = n_center // 2 + j_shift
+        axes_img.axes.add_patch(Circle((n_center_fl, m_center_fl), disk_r, edgecolor='red', facecolor='none'))
