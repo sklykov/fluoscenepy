@@ -75,7 +75,8 @@ class UscopeScene:
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
     # placeholders for classes used for precompilation of methods by numba
     __round_fl_obj: Optional["FluorObj"] = None; __ellipse_fl_obj: Optional["FluorObj"] = None
-    __cast_options: list = ["neg.norm.", "int8", "int16", "norm", "uint8", "uint16"]  # short identifiers for the supported casting options
+    # short identifiers for the supported casting options as strings
+    __cast_options: list = ["neg.norm.", "int8", "int16", "norm", "uint8", "uint16", "0,1", "min-max", "z-score"]
 
     def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
                  numba_precompile: bool = True):
@@ -986,13 +987,18 @@ class UscopeScene:
             Input image as numpy array with real dtype.\n
         option : str, Optional\n
             One of the options: 'neg.norm.', 'int8', 'int16', where:\n
-            'neg.norm.' - output np.float64 image normalized to [-1.0, 1.0] ('negative normalized'); \n
-            'int8' - output np.int8 image rescaled to [-127, 127] (int8 plus max range in a sense: [-max, max]); \n
-            'int16' - output np.int16 image rescaled to [-32767, 32767] (int16 plus max range in a sense: [-max, max]) \n
-            'norm' - output np.float64, performs: (1) making all pixels non-negative, \n
-                    (2) normalization if max pixel > 1.0 by dividing by it\n
-            'uint8' - (1) make normalization to [0.0, 1.0] if it is possible, (2) scale to max uint8 value (255)\n
-            'uint16' - (1) make normalization to [0.0, 1.0] if it is possible, (2) scale to max uint16 value (65535)\n
+            'neg.norm.' - outputs np.float64 image normalized to [-1.0, 1.0] ('negative normalized'); \n
+            'int8' - outputs np.int8 image rescaled to [-127, 127] (int8 plus max range in a sense: [-max, max]); \n
+            'int16' - outputs np.int16 image rescaled to [-32767, 32767] (int16 plus max range in a sense: [-max, max]) \n
+            'norm' - outputs np.float64, performs range normalization as follows: (1) making all pixels non-negative, \n
+                    (2) normalization if only max pixel > 1.0 by dividing by it, assuming in other case that image is normalized \n
+            'uint8' - (1) make normalization according to 'norm' rules, (2) scale to max uint8 value (255);\n
+            'uint16' - (1) make normalization according to 'norm' rules, (2) scale to max uint16 value (65535);\n
+            '0,1' - outputs np.float64, performs same operations as for 'norm' but divides anyway by non-zero (>= 1e-12) max pixel value; \n
+                    note that this division can lead to noise amplification or dividing by hot pixel value \n
+            'min-max' - outputs np.float64, performs full scale or min-max normalization (I - min(I))/(max(I) - min(I));\n
+            'z-score' - outputs np.float64, performs z-score normalization or statistical pixel values conversion (in units of std) such as: \n
+                        mean(I) -> 0, var(I) -> 1 by (I - mean(I)) / (std(I) + eps), if std(I) + eps != 0, and eps = 1E-6 \n
 
         suppress_warnings : bool, Optional\n
             If True, this method won't throw any UserWarning, in particular about detected too noisy or flat image requested to be converted.\n
@@ -1010,6 +1016,16 @@ class UscopeScene:
         target = img.copy().astype(np.float64)  # not operating on an input image as a reference
         option = option.replace(" ", "")  # prevent mistakes in typing, like "neg. norm."
         is_img_noisy, _info = UscopeScene.is_image_too_noisy(target)
+        # Check for possible / common typos and correct selected option
+        if option == "norm.":  # "norm." instead of "norm"
+            option = "norm"
+        elif option in ["0, 1", "(0, 1)", "(0,1)", "[0, 1]", "[0,1]"]:  # possible variations of "0,1" option key
+            option = "0,1"
+        elif option in ["min max", "minmax"]:
+            option = "min-max"
+        elif option in ["zscore", "z score"]:
+            option = "z-score"
+        # Make conversion depending on the provided option
         if option in cls.__cast_options and not is_img_noisy:
             if option == cls.__cast_options[0]:  # "neg.norm."
                 minp = np.min(target); maxp = np.max(target)
@@ -1041,7 +1057,7 @@ class UscopeScene:
                 norm_neg_target *= np.iinfo(np.int16).max  # just use uniform transform to [-32767.0, 32767.0]
                 norm_neg_target = np.round(norm_neg_target, 0)  # prepare conversion to integer values
                 return norm_neg_target.astype(np.int16)
-            elif option == cls.__cast_options[3] or option == (cls.__cast_options[3] + "."):  # "norm" or "norm."
+            elif option == cls.__cast_options[3] or option == (cls.__cast_options[3] + "."):  # "norm"
                 min_pixel = np.min(target)
                 if min_pixel < 0.0:  # shift all pixel values to make them non-negative and check that max pixel allows normalization
                     target += np.abs(min_pixel)
@@ -1058,6 +1074,15 @@ class UscopeScene:
                 norm_target = UscopeScene.cast_image(img, "norm"); norm_target *= np.iinfo(np.uint16).max
                 norm_target = np.round(norm_target, 0)
                 return norm_target.astype(np.uint16)
+            elif option == cls.__cast_options[6]:  # "0,1"
+                norm_target = UscopeScene.cast_image(img, "norm"); max_pixel = np.max(norm_target)
+                if 1e-12 <= max_pixel < 1.0:  # Still limit to some meaningful non-zero level and divide if image not in a range [0.0, 1.0]
+                    norm_target /= max_pixel
+                return norm_target
+            elif option == cls.__cast_options[7]:  # "min-max"
+                pass
+            elif option == cls.__cast_options[8]:   # "z-score"
+                pass
         elif option not in cls.__cast_options:
             raise ValueError(f"\nProvided option '{option}' not found among the supported options: {cls.__cast_options}")
         elif is_img_noisy:
@@ -1077,12 +1102,13 @@ class UscopeScene:
             elif option == cls.__cast_options[5]:  # "uint16"
                 target = np.clip(target, a_min=np.iinfo(np.uint16).min, a_max=np.iinfo(np.uint16).max); target = target.astype(np.uint16)
                 _convers = "Rounded, clipped to uint16 range, casted to uint16"
-            elif option == cls.__cast_options[3] or option == (cls.__cast_options[3] + "."):  # "norm"
+            elif option == cls.__cast_options[3]:  # "norm"
                 minp = np.min(target)
                 if minp < 0.0:
                     target += np.abs(minp); _convers = "Shifted by abs(min_pixel), casted to np.float64"
                 else:
                     _convers = "Unchanged pixel values, casted to np.float64"
+            # TODO: add new options for noisy image
             else:
                 _convers = "Unchanged pixel values, casted to np.float64"
             if not suppress_warnings:
