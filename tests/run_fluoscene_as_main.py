@@ -253,11 +253,14 @@ if __name__ == "__main__":
     if test_cast:
         scene = UscopeScene(width=267, height=232, image_type=np.uint16)
         objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(15, 4090), n_objects=14, image_type=scene.img_type)
-        objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(); scene.show_scene()
+        objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(); scene.show_scene(); img_orig = scene.image.copy()
         img_neg_norm = UscopeScene.cast_image(scene.image, "neg.norm."); img_int8 = UscopeScene.cast_image(scene.image, option='int8')
         img_int16 = UscopeScene.cast_image(scene.image, option='int16'); img_norm = UscopeScene.cast_image(img_int8)
         img_uint8 = UscopeScene.cast_image(img_int16, option='uint8'); img_uint16 = UscopeScene.cast_image(img_neg_norm, option='uint16')
-        rng = np.random.default_rng()
+        img_norm = UscopeScene.cast_image(scene.image, "0,1"); img_min_max = UscopeScene.cast_image(scene.image, "min-max")
+        plt.figure("min-max norm"); plt.imshow(img_min_max); plt.axis("off"); plt.tight_layout()
+        img_z_score = UscopeScene.cast_image(scene.image, "z-score"); plt.figure("z-score"); plt.imshow(img_z_score)
+        plt.axis("off"); plt.tight_layout(); rng = np.random.default_rng()
         noisy_img = (rng.random(size=(156, 121)) - 0.5)*1E-3  # just noisy image shifted to (-0.5, 0.5) and scaled to small values
         if check_warning:
             norm_noisy_img = UscopeScene.cast_image(noisy_img)  # should normally generate a warning of caught noisy image
