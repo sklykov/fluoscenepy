@@ -195,8 +195,8 @@ def test_cast_images():
     None.
 
     """
-    scene = UscopeScene(width=267, height=232, image_type=np.uint16)
-    objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(15, 4090), n_objects=14, image_type=scene.img_type)
+    scene = UscopeScene(width=267, height=232, image_type=np.uint16); max_orig_p = 4090
+    objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(15, max_orig_p), n_objects=11, image_type=scene.img_type)
     objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise()
     img_neg_norm = UscopeScene.cast_image(scene.image, option="neg.norm.")
     assert np.min(img_neg_norm) == -1.0 and np.max(img_neg_norm) == 1.0, "Image casting ('cast_image') to range [-1.0, 1.0] has a problem"
@@ -217,6 +217,13 @@ def test_cast_images():
     assert len(record) == 1, "Expected UserWarning about noisy image not thrown"
     w = list(record)[0]  # bypass some error with not iterable complain
     assert "noise prevails over signal" in str(w.message), "UserWarning doesn't contain the phrase 'noise prevails over signal'"
+    # checks for new casts: min-max, 0,1 and z-score
+    img_minmax = UscopeScene.cast_image(scene.image, option='min-max')
+    assert img_minmax.max() < max_orig_p, "Min-max conversion is wrong"
+    img_n01 = UscopeScene.cast_image(scene.image, option='0,1')
+    assert img_n01.min() < 1e-6 and img_n01.max() < 1.0 + 1e-6, "0,1 conversion is wrong"
+    img_zs = UscopeScene.cast_image(scene.image, option='z-score')
+    assert np.var(img_zs) < 1.1 and np.mean(img_zs) < 0.1, "z-score conversion is wrong, wrong checks: var(I) -> 1.0, mean(I) -> 0.0"
 
 
 def test_compilation():
