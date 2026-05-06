@@ -989,24 +989,24 @@ class UscopeScene:
             One of the options: 'neg.norm.', 'int8', 'int16', where:\n
             'neg.norm.' - outputs np.float64 image normalized to [-1.0, 1.0] ('negative normalized'); \n
             'int8' - outputs np.int8 image rescaled to [-127, 127] (int8 plus max range in a sense: [-max, max]); \n
-            'int16' - outputs np.int16 image rescaled to [-32767, 32767] (int16 plus max range in a sense: [-max, max]) \n
-            'norm' - outputs np.float64, performs range normalization as follows: (1) making all pixels non-negative, \n
-                    (2) normalization if only max pixel > 1.0 by dividing by it, assuming in other case that image is normalized \n
+            'int16' - outputs np.int16 image rescaled to [-32767, 32767] (int16 plus max range in a sense: [-max, max])\n
+            'norm' - outputs np.float64, performs range normalization as follows: (1) making all pixels non-negative,\n
+                    (2) normalization if only max pixel > 1.0 by dividing by it, assuming in other case that image is normalized\n
             'uint8' - (1) make normalization according to 'norm' rules, (2) scale to max uint8 value (255);\n
             'uint16' - (1) make normalization according to 'norm' rules, (2) scale to max uint16 value (65535);\n
-            '0,1' - outputs np.float64, performs same operations as for 'norm' but divides anyway by non-zero (>= 1e-9) max pixel value; \n
+            '0,1' - outputs np.float64, performs same operations as for 'norm' but divides anyway by non-zero (>= 1e-9) max pixel\n
                     note that this division can lead to noise amplification or dividing by hot pixel value \n
-            'min-max' - outputs np.float64, performs full scale or min-max normalization (I - min(I))/(max(I) - min(I));\n
+            'min-max' - outputs np.float64, performs full scale or min-max normalization (I - min(I))/(max(I) - min(I))\n
                         note that conversion is performed if max(I) - min(I) >= 1e-9;\n
-            'z-score' - outputs np.float64, performs z-score normalization or statistical pixel values conversion (in units of std) such as:\n
-                        mean(I) -> 0, var(I) -> 1 by (I - mean(I)) / std(I), if std(I) >= 1e-9 \n
+            'z-score' - outputs np.float64, performs z-score normalization or statistical pixel values conversion (std units)\n
+                        such as: mean(I) -> 0, var(I) -> 1 by (I - mean(I)) / std(I), if std(I) >= 1e-9\n
 
         suppress_warnings : bool, Optional\n
             If True, this method won't throw any UserWarning, in particular about detected too noisy or flat image to be converted.\n
 
         Raises
         ------
-        ValueError
+        ValueError\n
             If the provided option not found in a list of available cast options.\n
 
         Returns
@@ -1158,7 +1158,8 @@ class UscopeScene:
         Returns
         -------
         Tuple[bool, str] \n
-            First flag True, if image is defined as containing noise only, second - report about defined reason.
+            First variable is True, if image is defined as containing noise only,\n
+            second variable - report about the possible reasons if first is True.
 
         """
         target = img.copy().astype(np.float64); minp = np.min(target); _report = ""; _image_too_noisy = False; snr = 0.0
