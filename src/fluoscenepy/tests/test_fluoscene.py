@@ -14,9 +14,8 @@ For running collected here tests, it's enough to run the command "pytest" from t
 import numpy as np
 import pytest
 
-if __name__ != "__main__":
-    from ..fluoscene import UscopeScene, FluorObj, precompile_fluoscene, clean_fluoscene_cache, numba_installed
-    from ..utils.comp_funcs import get_radius_gaussian, get_ellipse_sizes
+from ..fluoscene import FluorObj, UscopeScene, clean_fluoscene_cache, numba_installed, precompile_fluoscene
+from ..utils.comp_funcs import get_ellipse_sizes, get_radius_gaussian
 
 
 # %% Tests
@@ -31,22 +30,22 @@ def test_scene_initialization():
     """
     try:
         UscopeScene(width=1, height=6)
-        assert False, "Wrong initialization (UscopeScene(width=1, height=6)) not thrown the error"
+        raise AssertionError("\nWrong initialization (UscopeScene(width=1, height=6)) not thrown the error")
     except ValueError:
         pass
     try:
         UscopeScene(width=12, height=3)
-        assert False, "Wrong initialization (UscopeScene(width=12, height=3)) not thrown the error"
+        raise AssertionError("\nWrong initialization (UscopeScene(width=12, height=3)) not thrown the error")
     except ValueError:
         pass
     try:
         UscopeScene(width=4.5, height=6)
-        assert False, "Wrong initialization (UscopeScene(width=4.5, height=6)) not thrown the error"
+        raise AssertionError("\nWrong initialization (UscopeScene(width=4.5, height=6)) not thrown the error")
     except TypeError:
         pass
     try:
         UscopeScene(width=5, height=4, image_type='none')
-        assert False, "Wrong initialization (UscopeScene(width=2, height=2, img_type='none')) not thrown the error"
+        raise AssertionError("\nWrong initialization (UscopeScene(width=2, height=2, img_type='none')) not thrown the error")
     except ValueError:
         pass
     scene = UscopeScene(width=51, height=100, image_type='uint16'); scene2 = UscopeScene(width=31, height=101, image_type=np.uint16)
@@ -68,23 +67,23 @@ def test_fluorobj_initialization():
     # False parameters provided for initialization - tests should fail
     try:
         FluorObj(typical_size=-0.4)
-        assert False, "Wrong initialization (FluorObj(typical_size=-0.4)) not thrown the error"
+        raise AssertionError("\nWrong initialization (FluorObj(typical_size=-0.4)) not thrown the error")
     except ValueError:
         pass
     try:
         FluorObj(typical_size=5, center_shifts=1.0)
-        assert False, "Wrong initialization (FluorObj(typical_size=5, center_shifts=1.0) not thrown the error"
+        raise AssertionError("\nWrong initialization (FluorObj(typical_size=5, center_shifts=1.0) not thrown the error")
     except TypeError:
         pass
     try:
         FluorObj(typical_size=(4.0, 4.0, 0.25), center_shifts=(0.0, 0.1))
-        assert False, "Wrong initialization FluorObj(typical_size=(4.0, 4.0, 0.25), center_shifts=(0.0, 0.1) not thrown the error"
-    except TypeError:
+        raise AssertionError("\nWrong initialization FluorObj(typical_size=(4.0, 4.0, 0.25), center_shifts=(0.0, 0.1) not thrown the error")
+    except ValueError:
         pass
     try:
         FluorObj(typical_size=(1.49, 1.0, 2.18), center_shifts=(0.0, 0.1), shape_type='el')
-        assert False, ("Wrong initialization FluorObj(typical_size=(1.49, 1.0, 2.18), center_shifts=(0.0, 0.1), shape_type='el') "
-                       + " - not thrown the error for typical sizes out of range")
+        raise AssertionError(("\nWrong initialization FluorObj(typical_size=(1.49, 1.0, 2.18), center_shifts=(0.0, 0.1), shape_type='el') "
+                       + " - not thrown the error for typical sizes out of range"))
     except ValueError:
         pass
     # Checking initialization logic - acceptable parameters passed
@@ -112,6 +111,8 @@ def test_objects_generation():
 
     """
     # Not accelerated generation testing
+    UscopeScene.get_random_objects(mean_size=(3.81, 2.36), size_std=(0.46, 0.22), shapes='round', intensity_range=(180, 251), n_objects=2)
+    UscopeScene.get_random_objects(mean_size=(3.81, 2.36), size_std=(0.46, 0.22), shapes='ellipse', intensity_range=(180, 251), n_objects=2)
     circles = UscopeScene.get_round_objects(mean_size=8, size_std=1.5, intensity_range=(202, 253), n_objects=5)
     scene = UscopeScene(width=55, height=42, image_type='uint16')
     placed_circles = scene.set_random_places(circles, overlapping=False, touching=False, only_within_scene=True)
@@ -127,22 +128,13 @@ def test_objects_generation():
     robjs2 = UscopeScene.get_round_objects(mean_size=12, size_std=8, intensity_range=(230, 254), n_objects=n_tested_objs)
     assert len(robjs2) == n_tested_objs, f"Round object generation not creating {n_tested_objs} objects as expected"
     # Acceleration generation testing
-    accelerated_method_called = False
-    try:
-        import numba; numba_not_installed = False
-        if numba is not None and not numba_not_installed:
-            scene2.precompile_methods()  # verbose call of precompilation from a class
-            objs3 = scene2.get_objects_acc(mean_size=(2.5, 1.5), size_std=(1.0, 0.65), intensity_range=(240, 255),
-                                           n_objects=5, shapes='ellipse')
-            assert len(objs3) == 5, f"Number of generation objects by accelerated method is less than 3: {len(objs3)}"
-            placed_objs3 = scene2.set_random_places(objs3, overlapping=False, touching=False, only_within_scene=True)
-            assert len(placed_objs3) > 0, "Problem with placing common objects, no generated objects placed"
-            accelerated_method_called = True
-    except (ModuleNotFoundError, ImportError):
-        numba_not_installed = True
-    if numba_not_installed:
-        if accelerated_method_called:
-            assert False, "Accelerated method called wrongly (should be called because 'numba' not installed"
+    if numba_installed:
+        scene2.precompile_methods()  # verbose call of precompilation from a class
+        objs3 = scene2.get_objects_acc(mean_size=(2.5, 1.5), size_std=(1.0, 0.65), intensity_range=(240, 255),
+                                       n_objects=5, shapes='ellipse')
+        assert len(objs3) == 5, f"Number of generation objects by accelerated method is less than 3: {len(objs3)}"
+        placed_objs3 = scene2.set_random_places(objs3, overlapping=False, touching=False, only_within_scene=True)
+        assert len(placed_objs3) > 0, "Problem with placing common objects, no generated objects placed"
 
 
 def test_other_methods():
@@ -158,6 +150,8 @@ def test_other_methods():
     try:
         import numba
         if numba is not None:
+            scene4.get_objects_acc(mean_size=(3.75, 3.0), size_std=(0.25, 0.19), intensity_range=(195, 235), n_objects=2, shapes='round')
+            scene4.get_objects_acc(mean_size=(3.75, 3.0), size_std=(0.25, 0.19), intensity_range=(195, 235), n_objects=2, shapes='ellipse')
             objs4 = scene4.get_objects_acc(mean_size=(3.75, 3.0), size_std=(0.25, 0.19), intensity_range=(195, 235),
                                            n_objects=4, shapes='mixed')
     except (ModuleNotFoundError, ImportError):
@@ -172,7 +166,7 @@ def test_other_methods():
         noisy_img2 = UscopeScene.noise2image(scene4.image, mean_g=2, sigma_g=21, gain_p=0.5)
         assert np.max(noisy_img2) < np.max(scene4.image), "Gain hasn't reduced max pixel value in process of adding noise to an image"
     else:
-        assert False, "Something wrong with 'get_random_objects' method (check 'test_other_methods' function)"
+        raise AssertionError("\nSomething wrong with 'get_random_objects' method (check 'test_other_methods' function)")
 
 
 def test_radiuses_generation():
@@ -184,7 +178,7 @@ def test_radiuses_generation():
     None.
 
     """
-    for i in range(250):
+    for _ in range(250):
         r = get_radius_gaussian(r=1.5, r_std=1.0, mean_size=1.5, size_std=1.0)
         assert r >= 0.5, f"Generated r < 0.5: {round(r, 3)}"
         a, b, angle = get_ellipse_sizes(mean_size=(3.0, 2.0), size_std=(2.0, 1.0))
@@ -201,8 +195,8 @@ def test_cast_images():
     None.
 
     """
-    scene = UscopeScene(width=267, height=232, image_type=np.uint16)
-    objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(15, 4090), n_objects=14, image_type=scene.img_type)
+    scene = UscopeScene(width=267, height=232, image_type=np.uint16); max_orig_p = 4090
+    objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(15, max_orig_p), n_objects=11, image_type=scene.img_type)
     objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise()
     img_neg_norm = UscopeScene.cast_image(scene.image, option="neg.norm.")
     assert np.min(img_neg_norm) == -1.0 and np.max(img_neg_norm) == 1.0, "Image casting ('cast_image') to range [-1.0, 1.0] has a problem"
@@ -223,6 +217,13 @@ def test_cast_images():
     assert len(record) == 1, "Expected UserWarning about noisy image not thrown"
     w = list(record)[0]  # bypass some error with not iterable complain
     assert "noise prevails over signal" in str(w.message), "UserWarning doesn't contain the phrase 'noise prevails over signal'"
+    # checks for new casts: min-max, 0,1 and z-score
+    img_minmax = UscopeScene.cast_image(scene.image, option='min-max')
+    assert img_minmax.max() < max_orig_p, "Min-max conversion is wrong"
+    img_n01 = UscopeScene.cast_image(scene.image, option='0,1')
+    assert img_n01.min() < 1e-6 and img_n01.max() < 1.0 + 1e-6, "0,1 conversion is wrong"
+    img_zs = UscopeScene.cast_image(scene.image, option='z-score')
+    assert np.var(img_zs) < 1.1 and np.mean(img_zs) < 0.1, "z-score conversion is wrong, wrong checks: var(I) -> 1.0, mean(I) -> 0.0"
 
 
 def test_compilation():

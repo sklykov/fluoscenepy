@@ -6,9 +6,10 @@ Computational compiled utility functions for 'fluoscenepy'.
 
 """
 # %% Global Imports
-from numba import njit
-import numpy as np
 from typing import List, Tuple
+
+import numpy as np
+from numba import njit
 
 
 # %% Func. defs.

@@ -8,6 +8,7 @@ on:
       - 'requirements.txt'
       - '.github/workflows/test.yaml'
   pull_request:
+    branches: [ main ]
 
 jobs:
   test:

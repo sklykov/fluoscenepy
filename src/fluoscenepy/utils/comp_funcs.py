@@ -7,14 +7,16 @@ Computational utility functions for 'fluoscenepy'.
 """
 # %% Global imports
 import random
-from numbers import Real
-from typing import Union, Tuple
-import numpy as np
 import time
+from contextlib import suppress
+from typing import Tuple, Union
+
+import numpy as np
 
 
 # %% Function defs.
-def get_random_shape_props(mean_size: Union[Real, tuple], size_std: Union[Real, tuple]) -> Tuple[Real, Real, Real]:
+def get_random_shape_props(mean_size: Union[Union[int, float], tuple],
+                           size_std: Union[Union[int, float], tuple]) -> Tuple['str', Union[int, float], Union[int, float]]:
     """
     Select object properties from the provided parameters.
 
@@ -33,6 +35,7 @@ def get_random_shape_props(mean_size: Union[Real, tuple], size_std: Union[Real, 
         Selected (shape_type, mean_size, size_std).
 
     """
+    shape_type: str; r: Union[int, float]; r_std: Union[int, float]
     shape_type = random.choice(['round', 'ellipse'])  # select between two supported types of objects
     # Define radius and radius std for round particles from the provided tuples for the ellipses (random choice between a and b)
     if isinstance(mean_size, tuple):
@@ -67,7 +70,7 @@ def get_random_central_shifts() -> tuple:
     return i_shift, j_shift
 
 
-def get_random_max_intensity(intensity_range: tuple) -> Union[int, float]:
+def get_random_max_intensity(intensity_range: Tuple[Union[int, float], Union[int, float]]) -> Union[int, float]:
     """
     Select the intensity from the provided min, max range.
 
@@ -83,29 +86,31 @@ def get_random_max_intensity(intensity_range: tuple) -> Union[int, float]:
 
     """
     min_intensity, max_intensity = intensity_range  # assuming that only 2 values provided, if not - will throw an Exception
-    fl_intensity = 0   # default parameter
+    fl_intensity: Union[int, float]  # can be either of two types
     # Random selection of max intensity for the profile casting
     if isinstance(min_intensity, int) and isinstance(max_intensity, int):
         fl_intensity = random.randrange(min_intensity, max_intensity)  # 1 - default step
     elif isinstance(min_intensity, float) and isinstance(max_intensity, float):
         fl_intensity = random.uniform(a=min_intensity, b=max_intensity)
+    else:
+        fl_intensity = 0  # default int
     return fl_intensity
 
 
-def get_radius_gaussian(r: Union[Real, None], r_std: Union[Real, None], mean_size: Real,
-                        size_std: Real) -> float:
+def get_radius_gaussian(r: Union[Union[int, float], None], r_std: Union[Union[int, float], None], mean_size: Union[int, float],
+                        size_std: Union[int, float]) -> float:
     """
     Get the random Gaussian-distributed radius.
 
     Parameters
     ----------
-    r : Union[Real, None]
+    r : Union[Union[int, float], None]
         Selected radius.
-    r_std : Union[Real, None]
+    r_std : Union[Union[int, float], None]
         Selected radius STD.
-    mean_size : Real
+    mean_size : Union[int, float]
         Directly provided parameter by the method call if r is None.
-    size_std : Real
+    size_std : Union[int, float]
         Directly provided parameter by the method call if r_std is None.
 
     Raises
@@ -132,7 +137,8 @@ def get_radius_gaussian(r: Union[Real, None], r_std: Union[Real, None], mean_siz
     return radius
 
 
-def get_ellipse_sizes(mean_size: tuple, size_std: tuple) -> tuple:
+def get_ellipse_sizes(mean_size: Tuple[Union[int, float], Union[int, float]],
+                      size_std: Tuple[Union[int, float], Union[int, float]]) -> Tuple[float, float, float]:
     """
     Get the randomly Gaussian distributed axes sizes a, b and uniformly distributed angle.
 
@@ -185,8 +191,8 @@ def print_out_elapsed_t(initial_timing: float, operation: str = "Operation"):
     """
     elapsed_time_ov = int(round(1000.0*(time.perf_counter() - initial_timing), 0))
     if elapsed_time_ov > 1000:
-        elapsed_time_ov /= 1000.0; elapsed_time_ov = round(elapsed_time_ov, 1)
-        print(f"{operation} took: {elapsed_time_ov} seconds", flush=True)
+        elapsed_time_s = elapsed_time_ov*1E-3; elapsed_time_s = round(elapsed_time_s, 1)
+        print(f"{operation} took: {elapsed_time_s} seconds", flush=True)
     else:
         print(f"{operation} took: {elapsed_time_ov} milliseconds", flush=True)
 
@@ -210,10 +216,8 @@ def delete_coordinates_from_list(coordinates_list: list, input_list: list) -> li
     """
     cleaned_list = input_list.copy()
     for del_coord in coordinates_list:
-        try:
+        with suppress(ValueError):
             cleaned_list.remove(del_coord)
-        except ValueError:
-            pass
     return cleaned_list
 
 

@@ -1,6 +1,5 @@
 [project]
 name = "fluoscenepy"
-# version = "0.0..."  # Manual specification of the version in this file
 dynamic = ["version"]  # Discovering of the version by the setuptools (see below: in the 'file' or 'attr')
 authors = [
     {name = "Sergei Klykov"},
@@ -18,6 +17,11 @@ dependencies = [
     "numpy",
     "matplotlib",
 ]
+[project.optional-dependencies]
+performance = ["numba>=0.57.1"]
+dev = ["ruff", "mypy", "pytest"]
+all = ["numba>=0.57.1"]
+
 keywords = ["fluorescent-microscopic-image-simulation"]
 
 [project.urls]  # METADATA in wheel file will represent the data below by using pip show zernpy -v
@@ -28,13 +32,57 @@ keywords = ["fluorescent-microscopic-image-simulation"]
 "Documentation" = "https://sklykov.github.io/fluoscenepy/api_doc/fluoscenepy/fluoscene.html"
 "Changelog" = "https://github.com/sklykov/fluoscenepy/blob/main/CHANGELOG.md"
 
-# [tool.setuptools.packages.find]  # Manifest.in file is only required for adding some package-data and exlude it
+[tool.setuptools.packages.find]  # Logic transferred from 'zernpy' project
+where = ["src"]
+include = ["fluoscenepy*"]
+exclude = ["fluoscenepy.tests*"]
+namespaces = false
+
+[tool.setuptools]
+include-package-data = false 
 
 # Below - specification of version within the package by discovering attribute in project files
 [tool.setuptools.dynamic]
-# version = {file = "VERSION"}  # reading the version from the plane file
 version = {attr = "fluoscenepy.__version__"}  # Variable set in the __init__.py
 
 [build-system]
 requires = ["setuptools>=75.0"]
 build-backend = "setuptools.build_meta"
+
+# Typing checks by mypy, not strict mode
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true  # mypy will warn if any of options below not valid
+warn_redundant_casts = true  # warn about unnecessary cast(): from typing import cast
+warn_unused_ignores = true  # warn about unused comments '# type: ignore'
+show_error_codes = true  # enables error code in a report
+pretty = true  # better formatted report in a console
+strict_equality = true  # checks proper usage of ==, !=, in
+check_untyped_defs = true  # mypy checks untyped expressions and tries to infer types
+exclude = [
+    '^tests/',
+    '^build/',
+    '^dist/',
+    '^src/fluoscenepy/case_studies/',
+	'^src/fluoscenepy/tests/'
+]
+[[tool.mypy.overrides]]  # for ignoring warning about not checked imported libraries
+module = ["numba"]
+ignore_missing_imports = true
+
+# Formatting checks by the ruff linter
+[tool.ruff]
+line-length = 145  # my own preference
+indent-width = 4
+target-version = "py311"
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "SIM"]
+ignore = ["E702", "E402", # used in the IDE
+    "SIM108", # many ternany operator replacements in a code
+    "SIM113", # potentially can break logic in a loop
+]
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true

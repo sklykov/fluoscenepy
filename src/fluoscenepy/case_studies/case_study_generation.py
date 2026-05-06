@@ -7,10 +7,12 @@ Case studies of implemented methods usage.
 
 """
 # %% Global imports
-from pathlib import Path
-import numpy as np
 import sys
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+import numpy as np
+
 try:
     from skimage.io import imsave
 except (ModuleNotFoundError, ImportError):
@@ -23,7 +25,7 @@ if main_script_path not in sys.path:
     sys.path.insert(0, main_script_path)
 # Import script directly from added absolute path
 if __name__ == "__main__" or __name__ == Path(__file__).stem or __name__ == "__mp_main__":
-    from fluoscenepy.fluoscene import precompile_fluoscene, UscopeScene
+    from fluoscenepy.fluoscene import UscopeScene, precompile_fluoscene
 
 # %% Parameters - flags for making studies
 check_uncompiled_generation_performance = False  # checked for 0.0.5

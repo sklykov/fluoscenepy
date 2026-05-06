@@ -1,4 +1,8 @@
 # 'fluoscenepy' Project
+[![Tests](https://github.com/sklykov/fluoscenepy/actions/workflows/test.yaml/badge.svg)](https://github.com/sklykov/fluoscenepy/actions/workflows/test.yaml)
+[![PyPI](https://img.shields.io/pypi/v/fluoscenepy)](https://pypi.org/project/fluoscenepy/) 
+[![License](https://img.shields.io/github/license/sklykov/fluoscenepy)](https://github.com/sklykov/fluoscenepy/blob/main/LICENSE)
+[![Lint](https://img.shields.io/badge/lint-ruff-informational)](https://github.com/astral-sh/ruff)
 
 The 'fluoscenepy' project is designed to simulate microscopic images featuring basic structures such as beads and ellipses, 
 calculated using various computational approaches.  
@@ -65,7 +69,7 @@ flobj = FluorObj(typical_size=4.8); flobj.get_shape(); flobj.plot_shape()
 ```
 
 3) The "continuously" shaped bead can be calculated using implemented in the ***FluorObj*** bell-shaped 
-functions, e.g. gaussian, lorentzian, and so on (full list can be printed out by calling the
+functions, e.g. Gaussian, Lorentzian, and so on (full list can be printed out by calling the
 ***get_shaping_functions()*** method). Note that the calculation can be performed only for the parameter 
 set as: ***border_type='computed'*** or ***border_type='co'***. For the illustration of the calculated
 shape:    
@@ -170,8 +174,28 @@ of a single object.
 
 ### Casting of images
 The target image (2D numpy array) can be cast or transformed with various possible options: "neg.norm.", "int8", "int16",
-"norm", "uint8", "uint16". All conversion implies that the input image contains some signal (not only noise presented 
-or the image is flat - contains mostly same pixel values). Check autoreport formed after calling ***cast_image(...)*** method.
+"norm", "uint8", "uint16", "0,1", "min-max", "z-score". All conversion implies that the input image contains some signal 
+(not only noise presented or an image is flat, i.e. contains mostly same pixel values). 
+Check auto report formed after calling ***cast_image(...)*** method.   
+Minimal code sample:
+````python
+from fluoscenepy import UscopeScene
+img_norm = UscopeScene.cast_image(img, option="0,1")   # normalized to the range [0.0, 1.0] img
+````
+Casting rules are depending on the acceptable 'option' variable:  
+'neg.norm.' - outputs np.float64 image normalized to the range [-1.0, 1.0] ('negative normalized');  
+'int8' - outputs np.int8 image rescaled to the range [-127, 127];  
+'int16' - outputs np.int16 image rescaled to the range [-32767, 32767];  
+'norm' (default) - outputs np.float64, performs range normalization as follows: (1) making all pixels non-negative,
+(2) normalization by dividing on a max pixel if only it is > 1.0, assuming in other case that image is normalized;
+'uint8' - (1) make normalization according by the 'norm' rules, (2) scale to the max uint8 value 255;  
+'uint16' - (1) make normalization according by the 'norm' rules, (2) scale to max uint16 value 65535;  
+'0,1' - outputs np.float64, performs same operations as for the 'norm' rules but divides anyway by non-zero max pixel value,
+treating as the non-zero max pixel value >= 1e-9;  
+'min-max' - outputs np.float64, perform the full scale or min-max normalization of an image I: (I - min(I))/(max(I) - min(I)),
+if max(I) - min(I) >= 1e-9;  
+'z-score' - outputs np.float64, performs the z-score normalization of an image I or statistical pixel values conversion 
+(in units of std): (I - mean(I)) / std(I), if std(I) >= 1e-9, such that mean(I) → 0, var(I) → 1.  
 
 ### Compatibility with numpy >= 2.0.0
 Even though all tests have been passed for the latest on 26-03-2026 numpy ver. 2.4.3, please create an issue if something

@@ -1,39 +1,32 @@
 # -*- coding: utf-8 -*-
 """
-Provide way for running within IDE the main script from a library with relative imports for testing as a file.
+Test features of 'fluoscenepy' by importing of editable installation (pip install -e . - command for such installation).
 
 @author: @sklykov
 
 """
 # %% Imports and checking its validity
-import sys
 from pathlib import Path
 import numpy as np
+import matplotlib
+import importlib
+from contextlib import suppress
 import time
 import warnings
 
 # Explicit backend assignment for matplotlib - for compatibility between running configurations in Spyder and PyCharm IDEs
-import matplotlib
-try:
+with suppress(ImportError):
     matplotlib.use('Qt5Agg')
-except ImportError:  # will be thrown in the environment doesn't contain Qt-like library
-    pass
 import matplotlib.pyplot as plt
 
-# Note: the trick below is needed only if in a development environment is already installed this package (previous version) from pypi
-# and one need to import actual files from a repository folder instead of installed ones in an environment
-root = Path(__file__).resolve().parents[1]  # one step on top in parent folder, should be a root folder in a repo, not "src"
-if str(root) not in sys.path:
-    sys.path.insert(0, str(root))  # append to the start path to a root folder of a repo for correct import in a session
+# Import dev version of a package
+import fluoscenepy.fluoscene
+importlib.reload(fluoscenepy.fluoscene)
+from fluoscenepy.fluoscene import precompile_fluoscene, FluorObj, UscopeScene, clean_fluoscene_cache
 
-# Warning below should be ignored in the script context, since root path should be added before for the proper import
-import fluoscenepy.fluoscene as fs  # for checking that this import resolves to a folder in a repository
-from fluoscenepy.fluoscene import precompile_fluoscene, FluorObj, UscopeScene, clean_fluoscene_cache   # actual functionality for tests
-
-print("Path to a project:", fs.__file__, flush=True); actual_repo_imported = "site-packages" not in str(fs.__file__)
 
 # %% Actual tests
-if actual_repo_imported and __name__ == "__main__":
+if __name__ == "__main__":
     plt.close("all"); test_computed_centered_beads = False; test_precise_centered_bead = False; test_computed_shifted_beads = False
     test_precise_shifted_beads = False; test_ellipse_centered = False; test_ellipse_shifted = False; test_casting = False
     test_cropped_shapes = True; test_put_objects = False; test_generate_objects = False; test_overall_gen = False
@@ -48,6 +41,7 @@ if actual_repo_imported and __name__ == "__main__":
     test_add_noise_ext_img = False  # testing of adding noise to an external image
     test_cleaning_compilation_cache = False  # can be checked if local numba cache cleaned
     test_cast = True; check_warning = True  # casting images from different source to different data types
+    show_valuable_round_objs = True
 
     # Check if skimage (not included in the project's dependencies) is installed and set the flag for using it for saving generated images
     saving_possible = True
@@ -122,8 +116,8 @@ if actual_repo_imported and __name__ == "__main__":
         scene.put_objects_on(objs); scene.put_objects_on(objs2, save_objects=False); scene.show_scene()
         # scene2 = UscopeScene(width=55, height=46); scene2.show_scene()  # will show 'Blank' image
     if test_overall_gen:
-        objs3 = UscopeScene.get_random_objects(mean_size=(8.3, 5.4), size_std=(2, 1.19),
-                                               shapes='mixed', intensity_range=(182, 250), n_objects=5)
+        objs3 = UscopeScene.get_random_objects(mean_size=(8.3, 5.4), size_std=(2, 1.19), shapes='mixed',
+                                               intensity_range=(182, 250), n_objects=5)
         scene = UscopeScene(width=55, height=46); scene.spread_objects_on(objs3); scene.show_scene(color_map='gray')
     if test_precise_shape_gen:
         objs4 = UscopeScene.get_random_objects(mean_size=(6.21, 5.36), size_std=(1.25, 0.95), shapes='mixed', intensity_range=(182, 250),
@@ -259,17 +253,25 @@ if actual_repo_imported and __name__ == "__main__":
     if test_cast:
         scene = UscopeScene(width=267, height=232, image_type=np.uint16)
         objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(15, 4090), n_objects=14, image_type=scene.img_type)
-        objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(); scene.show_scene()
+        objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.add_noise(); scene.show_scene(); img_orig = scene.image.copy()
         img_neg_norm = UscopeScene.cast_image(scene.image, "neg.norm."); img_int8 = UscopeScene.cast_image(scene.image, option='int8')
         img_int16 = UscopeScene.cast_image(scene.image, option='int16'); img_norm = UscopeScene.cast_image(img_int8)
         img_uint8 = UscopeScene.cast_image(img_int16, option='uint8'); img_uint16 = UscopeScene.cast_image(img_neg_norm, option='uint16')
-        rng = np.random.default_rng()
+        img_norm = UscopeScene.cast_image(scene.image, "0,1"); img_min_max = UscopeScene.cast_image(scene.image, "min-max")
+        plt.figure("min-max norm"); plt.imshow(img_min_max); plt.axis("off"); plt.tight_layout()
+        img_z_score = UscopeScene.cast_image(scene.image, "z-score"); plt.figure("z-score"); plt.imshow(img_z_score)
+        plt.axis("off"); plt.tight_layout(); rng = np.random.default_rng()
         noisy_img = (rng.random(size=(156, 121)) - 0.5)*1E-3  # just noisy image shifted to (-0.5, 0.5) and scaled to small values
         if check_warning:
             norm_noisy_img = UscopeScene.cast_image(noisy_img)  # should normally generate a warning of caught noisy image
         else:
             with warnings.catch_warnings():  # context manager for collecting Warnings based on rule below
                 warnings.simplefilter("ignore", UserWarning); norm_noisy_img = UscopeScene.cast_image(noisy_img)
+
+    if show_valuable_round_objs:
+        scene = UscopeScene(width=267, height=232, image_type=np.uint16)
+        objs = scene.get_round_objects(mean_size=12, size_std=2, intensity_range=(15, 4090), n_objects=20, image_type=scene.img_type)
+        objs = scene.set_random_places(objs); scene.put_objects_on(objs); scene.show_scene()
 
     if test_cleaning_compilation_cache:
         print("Local cache cleaned:", clean_fluoscene_cache())
