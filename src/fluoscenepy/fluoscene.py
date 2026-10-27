@@ -4,7 +4,7 @@ Main script for the 'fluoscenepy' package.
 
 @author: Sergei Klykov, '@sklykov' on GitHub
 
-@licence: MIT, @year: 2026
+@license: MIT, @year: 2026
 
 """
 # %% Imports, module variables

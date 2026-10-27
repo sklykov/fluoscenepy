@@ -14,45 +14,64 @@ For running collected here tests, it's enough to run the command "pytest" from t
 import numpy as np
 import pytest
 
-from ..fluoscene import FluorObj, UscopeScene, clean_fluoscene_cache, numba_installed, precompile_fluoscene
-from ..utils.comp_funcs import get_ellipse_sizes, get_radius_gaussian
+from fluoscenepy import FluorObj, UscopeScene, clean_fluoscene_cache, precompile_fluoscene
+from fluoscenepy.fluoscene import numba_installed
+from fluoscenepy.utils.comp_funcs import get_ellipse_sizes, get_radius_gaussian
 
 
 # %% Tests
-def test_scene_initialization():
+@pytest.mark.parametrize(("kwargs", "expected_exception"), 
+                         [({"width": 1, "height": 6}, ValueError),
+                          ({"width": 12, "height": 3}, ValueError),
+                          ({"width": 4.5, "height": 6}, TypeError),
+                          ({"width": 8, "height": 3.75}, ValueError),
+                          ({"width": 8, "height": 10.75}, TypeError),
+                          ({"width": -10, "height": 6}, ValueError),
+                          ({"width": 5, "height": 4, "image_type": 'none'}, ValueError),
+                         ])
+def test_scene_initialization(kwargs: dict, expected_exception: Exception):
     """
-    Test the 'UscopeScene' class initialization cases.
+    Test specific input parameters when initialization should throw an exception.
+
+    Parameters
+    ----------
+    kwargs : dict
+        Initialization key-worded parameters.
+    expected_exception : Exception
+        Expected type of exception to catch.
 
     Returns
     -------
-    None.
-
+    None
     """
-    try:
-        UscopeScene(width=1, height=6)
-        raise AssertionError("\nWrong initialization (UscopeScene(width=1, height=6)) not thrown the error")
-    except ValueError:
-        pass
-    try:
-        UscopeScene(width=12, height=3)
-        raise AssertionError("\nWrong initialization (UscopeScene(width=12, height=3)) not thrown the error")
-    except ValueError:
-        pass
-    try:
-        UscopeScene(width=4.5, height=6)
-        raise AssertionError("\nWrong initialization (UscopeScene(width=4.5, height=6)) not thrown the error")
-    except TypeError:
-        pass
-    try:
-        UscopeScene(width=5, height=4, image_type='none')
-        raise AssertionError("\nWrong initialization (UscopeScene(width=2, height=2, img_type='none')) not thrown the error")
-    except ValueError:
-        pass
-    scene = UscopeScene(width=51, height=100, image_type='uint16'); scene2 = UscopeScene(width=31, height=101, image_type=np.uint16)
-    assert scene.max_pixel_value == scene2.max_pixel_value, 'Wrong initialization for image types np.uint16 and "uint16" '
-    scene = UscopeScene(width=51, height=100, image_type='float'); scene2 = UscopeScene(width=31, height=101, image_type=np.float64)
-    assert abs(scene.max_pixel_value - scene2.max_pixel_value) < 1E-6, 'Wrong initialization for image types np.uint16 and "uint16" '
+    with pytest.raises(expected_exception):
+        UscopeScene(**kwargs)
 
+        
+@pytest.mark.parametrize(("kwargs1", "kwargs2"), 
+                         [({"width": 51, "height": 100, "image_type": 'uint16'}, 
+                           {"width": 32, "height": 201, "image_type": np.uint16}),
+                          ({"width": 62, "height": 115, "image_type": 'float'}, 
+                           {"width": 31, "height": 222, "image_type": np.float64}),
+                         ])
+def test_scene_img_type_init(kwargs1: dict, kwargs2: dict):
+    """
+    Test that differently named but the same image types share the same initialization path.
+
+    Parameters
+    ----------
+    kwargs1 : dict
+        Initialization parameters for the 1st class.
+    kwargs2 : dict
+        Initialization parameters for the 2nd class.
+
+    Returns
+    -------
+    None
+    
+    """
+    assert np.isclose(UscopeScene(**kwargs1).max_pixel_value, UscopeScene(**kwargs2).max_pixel_value)
+    
 
 @pytest.mark.filterwarnings("ignore::UserWarning")  # ignore any custom UserWarning, in test scenario - 'numba' not installed Warning
 def test_fluorobj_initialization():

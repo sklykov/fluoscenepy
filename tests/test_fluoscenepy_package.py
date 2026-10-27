@@ -5,18 +5,18 @@ Test the imports from "fluoscenepy" package.
 @author: Sergei Klykov, @year: 2024, @licence: MIT
 
 """
+import contextlib
 import warnings
+
 import pytest
 
-numba_installed = True
-try:
-    import numba
-    try:
-        print("numba version:", numba.__version__)  # just for some usage of numba package to suppress unused warning
-    except AttributeError:
-        pass
-except ModuleNotFoundError:
-    numba_installed = False
+numba_installed = False
+with contextlib.suppress(ModuleNotFoundError, AttributeError, ValueError):
+    from numba import __version__
+    major, minor, patch = __version__.split(".")
+    major = int(major); minor = int(minor); patch = int(patch)
+    if major > 0 or (major == 0 and (minor > 57 or (minor == 57 and patch == 1))):
+        numba_installed = True
 
 
 # Note for further development: pytest library is capable to automatically recognize the project following 'src'
@@ -33,7 +33,7 @@ def test_initialization():
 
     """
     try:
-        from fluoscenepy import __version__, FluorObj, UscopeScene
+        from fluoscenepy import FluorObj, UscopeScene, __version__
         minor_ver = int(__version__.split(".")[1])
         if minor_ver >= 1:
             from fluoscenepy import precompile_fluoscene
@@ -50,8 +50,4 @@ def test_initialization():
 
     except (ImportError, ModuleNotFoundError):
         __warn_message = "\nPackage 'fluoscenepy' not installed, this integration test cannot be fulfilled"
-        warnings.warn(__warn_message)
-
-
-if __name__ == "__main__":
-    test_initialization()
+        warnings.warn(__warn_message, stacklevel=2)

@@ -6,13 +6,14 @@ Test features of 'fluoscenepy' by importing of editable installation (pip instal
 
 """
 # %% Imports and checking its validity
-from pathlib import Path
-import numpy as np
-import matplotlib
 import importlib
-from contextlib import suppress
 import time
 import warnings
+from contextlib import suppress
+from pathlib import Path
+
+import matplotlib
+import numpy as np
 
 # Explicit backend assignment for matplotlib - for compatibility between running configurations in Spyder and PyCharm IDEs
 with suppress(ImportError):
@@ -21,9 +22,9 @@ import matplotlib.pyplot as plt
 
 # Import dev version of a package
 import fluoscenepy.fluoscene
-importlib.reload(fluoscenepy.fluoscene)
-from fluoscenepy.fluoscene import precompile_fluoscene, FluorObj, UscopeScene, clean_fluoscene_cache
 
+importlib.reload(fluoscenepy.fluoscene)
+from fluoscenepy.fluoscene import FluorObj, UscopeScene, clean_fluoscene_cache, precompile_fluoscene
 
 # %% Actual tests
 if __name__ == "__main__":

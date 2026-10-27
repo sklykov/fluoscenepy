@@ -1,4 +1,4 @@
-# 'fluoscenepy' Project
+# fluoscenepy
 [![Tests](https://github.com/sklykov/fluoscenepy/actions/workflows/test.yaml/badge.svg)](https://github.com/sklykov/fluoscenepy/actions/workflows/test.yaml)
 [![PyPI](https://img.shields.io/pypi/v/fluoscenepy)](https://pypi.org/project/fluoscenepy/) 
 [![License](https://img.shields.io/github/license/sklykov/fluoscenepy)](https://github.com/sklykov/fluoscenepy/blob/main/LICENSE)
