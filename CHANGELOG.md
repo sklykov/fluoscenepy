@@ -17,7 +17,7 @@ First version for fixing API (functions / classes names).
 - More tests for checking functionality of library methods ("test_fluoscene.py") for running by pytest.
 - More casting options for the static method ***UscopeScene.cast_image(...)***: "norm", "uint8", "uint16".
 - Checking by the method ***UscopeScene.cast_image(...)*** noise level / flatness (signal presence) in an image 
-before performing meaningful cast (avoid autoamplification of a noise by dividing on its max value).
+before performing meaningful cast (avoid auto-amplification of a noise by dividing on its max value).
 - Static method ***UscopeScene.is_image_too_noisy(...)*** that checks image content for presence of a signal.
 ### Changed
 - Function name for pre-compilation by numba: ***force_precompilation()*** → ***precompile_fluoscene()***;

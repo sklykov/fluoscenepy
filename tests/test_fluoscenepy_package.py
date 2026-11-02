@@ -2,7 +2,7 @@
 """
 Test the imports from "fluoscenepy" package.
 
-@author: Sergei Klykov, @year: 2024, @licence: MIT
+@author: Sergei Klykov, @year: 2024, @license: MIT
 
 """
 import contextlib

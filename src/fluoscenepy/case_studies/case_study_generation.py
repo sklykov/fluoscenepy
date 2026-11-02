@@ -3,7 +3,7 @@
 Case studies of implemented methods usage.
 
 @author: Sergei Klykov
-@licence: MIT, @year: 2024
+@license: MIT, @year: 2024
 
 """
 # %% Global imports
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         precompile_fluoscene()
         objs = uscene.get_random_objects(mean_size=4.0, size_std=0.25, intensity_range=(250, 255), n_objects=30, verbose_info=True,
                                          accelerated=True)  # for round objects: ~ 295-305 ms calculation
-    # Check class-binded accelerated methods
+    # Check class-bound accelerated methods
     if check_compiled_method_class:
         # objs = uscene.get_objects_acc(mean_size=2.0, size_std=0.05, intensity_range=(250, 255), n_objects=1, verbose_info=True)
         uscene.precompile_methods(verbose_info=True)

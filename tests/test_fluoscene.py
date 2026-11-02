@@ -7,7 +7,7 @@ For running collected here tests, it's enough to run the command "pytest" from t
 
 @author: Sergei Klykov
 
-@licence: MIT
+@license: MIT
 
 """
 # %% Imports

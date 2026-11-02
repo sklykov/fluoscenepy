@@ -1180,7 +1180,7 @@ class UscopeScene:
                 snr = pixels_spread / sigma  # estimates SNR of an image
             else:
                 if pixels_spread > 0:
-                    p25, p75 = np.percentile(target, [25, 75]); sigma = p75 - p25 / 1.349  # use interquantile estimation of sigma
+                    p25, p75 = np.percentile(target, [25, 75]); sigma = p75 - p25 / 1.349  # use inter quantile estimation of sigma
                     if sigma > 0.0:
                         snr = pixels_spread / sigma  # estimates SNR of an image
                     else:
