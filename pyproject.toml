@@ -8,7 +8,7 @@ authors = [
 description = "Simulation of a microscopic image with fluorescent objects featuring round (beads) and elongated shapes"
 readme = "README.md"
 # license = {file = "LICENSE"}  # includes the whole text in METADATA, maybe not so convenient
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",

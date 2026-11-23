@@ -13,7 +13,7 @@ import random
 import time
 import warnings
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -65,20 +65,20 @@ class UscopeScene:
     """
 
     # Class parameters
-    width: int = 4; height: int = 4; __warn_message: str = ""; max_pixel_value: Union[int, float, np.integer, np.floating] = 255
-    img_type: DTypeLike = np.uint8; acceptable_img_types: list = ['uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64]
-    shape: tuple = (height, width); fluo_objects: list = []; shape_types: list = ['mixed', 'round', 'r', 'ellipse', 'el']
-    image: Optional[np.ndarray] = None  # now, image can be None as well as np.ndarray after generation
+    width: int = 4; height: int = 4; __warn_message: str = ""; max_pixel_value: int | float | np.integer | np.floating = 255
+    img_type: DTypeLike = np.uint8; acceptable_img_types: tuple[str, ...] = ('uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64)  # TODO provide proper annotation
+    shape: tuple[int, int] = (height, width); shape_types: tuple[str, ...] = ('mixed', 'round', 'r', 'ellipse', 'el')
+    image: np.ndarray | None = None  # now, image can be None as well as np.ndarray after generation
     __image_cleared: bool = True  # for tracking that the scene was cleared (zeroed)
-    __available_coordinates: list = []; __binary_placement_mask: Optional[np.ndarray] = None
-    denoised_image: Optional[np.ndarray] = None  # keep copy of an initial, free from noise image
+    __available_coordinates: list = []; __binary_placement_mask: np.ndarray | None = None
+    denoised_image: np.ndarray | None = None  # keep copy of an initial, free from noise image
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
     # placeholders for classes used for precompilation of methods by numba
-    __round_fl_obj: Optional["FluorObj"] = None; __ellipse_fl_obj: Optional["FluorObj"] = None
+    __round_fl_obj: "FluorObj" | None = None; __ellipse_fl_obj: "FluorObj" | None = None
     # short identifiers for the supported casting options as strings
-    __cast_options: list = ["neg.norm.", "int8", "int16", "norm", "uint8", "uint16", "0,1", "min-max", "z-score"]
+    __cast_options: tuple[str, ...]= ("neg.norm.", "int8", "int16", "norm", "uint8", "uint16", "0,1", "min-max", "z-score")
 
-    def __init__(self, width: int, height: int, image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
+    def __init__(self, width: int, height: int, image_type: str | np.uint8 | np.uint16 | np.float64 = 'uint8',
                  numba_precompile: bool = True):
         """
         Initialize the class wrapper for store the current "scene" or microscopic image.
@@ -125,6 +125,7 @@ class UscopeScene:
         self.image = np.zeros(shape=(height, width), dtype=self.img_type)
         self.__image_cleared = True; self.shape = (self.height, self.width)
         self.methods_precompiled = False  # flag for retaining if the objects shape calculation methods precompiled
+        self.fluo_objects = []  # initially, no objects generated
         # Precompile of calculation methods for making calculations more convenient
         if numba_precompile and numba_installed:
             self.__round_fl_obj = FluorObj(typical_size=2.02, center_shifts=(0.1, -0.2))
@@ -133,11 +134,11 @@ class UscopeScene:
 
     # %% Objects specification / generation
     @classmethod
-    def get_random_objects(cls, mean_size: Union[Union[int, float], Tuple[Union[int, float], Union[int, float]]],
-                           size_std: Union[Union[int, float], Tuple[Union[int, float], Union[int, float]]],
-                           intensity_range: Tuple[Union[int, float], Union[int, float]],
-                           n_objects: int = 2, shapes: str = 'round', image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
-                           verbose_info: bool = False, accelerated: bool = False) -> Tuple["FluorObj", ...]:
+    def get_random_objects(cls, mean_size: int | float | tuple[int | float, int | float],
+                           size_std: int | float | tuple[int | float, int | float],
+                           intensity_range: tuple[int | float, int | float],
+                           n_objects: int = 2, shapes: str = 'round', image_type: str | np.uint8 | np.uint16 | np.float64 = 'uint8',
+                           verbose_info: bool = False, accelerated: bool = False) -> tuple["FluorObj", ...]:
         """
         Generate objects with randomized shape sizes, for shape types: 'round', 'ellipse', 'mixed' (random choice between first two).
 
@@ -401,8 +402,8 @@ class UscopeScene:
         return tuple(fl_objects)
 
     # %% Randomly assigning coordinates for objects
-    def set_random_places(self, fluo_objects: Tuple["FluorObj", ...] = (), overlapping: bool = True, touching: bool = True,
-                          only_within_scene: bool = False, verbose_info: bool = False) -> Tuple["FluorObj", ...]:
+    def set_random_places(self, fluo_objects: tuple["FluorObj", ...] = (), overlapping: bool = True, touching: bool = True,
+                          only_within_scene: bool = False, verbose_info: bool = False) -> tuple["FluorObj", ...]:
         """
         Set random coordinates within scene (or partially outside) for provided objects.
 
@@ -807,8 +808,8 @@ class UscopeScene:
         return self.__image_cleared
 
     # %% Adding shot and detector noise
-    def add_noise(self, seed: Optional[int] = None, mean_g: Union[int, float, None] = None,
-                  sigma_g: Union[int, float, None] = None, gain_p: float = 1.0) -> Optional[np.ndarray]:
+    def add_noise(self, seed: int | None = None, mean_g: Union[int, float, None] = None,
+                  sigma_g: Union[int, float, None] = None, gain_p: float = 1.0) -> np.ndarray | None:
         """
         Add pixelwise at first Poisson (signal dependent shot noise) and after background (Gaussian or detector) noise.
 
@@ -877,7 +878,7 @@ class UscopeScene:
             self.__noise_added = True  # switch the flag for tracking that the noise has been added
         return self.image
 
-    def remove_noise(self) -> Optional[np.ndarray]:
+    def remove_noise(self) -> np.ndarray | None:
         """
         Remove added previously noise by copying the stored in 'denoise_image' pixel content.
 
@@ -892,7 +893,7 @@ class UscopeScene:
         return self.image
 
     @staticmethod
-    def noise2image(image: np.ndarray, seed: Optional[int] = None, mean_g: Union[int, float, None] = None,
+    def noise2image(image: np.ndarray, seed: int | None = None, mean_g: Union[int, float, None] = None,
                     sigma_g: Union[int, float, None] = None, gain_p: float = 1.0) -> np.ndarray:
         """
         Add pixelwise at first Poisson (signal dependent shot noise) and after background (Gaussian or detector) noise.
@@ -985,7 +986,7 @@ class UscopeScene:
         ----------
         img : np.ndarray\n
             Input image as numpy array with real dtype.\n
-        option : str, Optional\n
+        option : str, optional\n
             One of the options: 'neg.norm.', 'int8', 'int16', where:\n
             'neg.norm.' - outputs np.float64 image normalized to [-1.0, 1.0] ('negative normalized'); \n
             'int8' - outputs np.int8 image rescaled to [-127, 127] (int8 plus max range in a sense: [-max, max]); \n
@@ -1001,7 +1002,7 @@ class UscopeScene:
             'z-score' - outputs np.float64, performs z-score normalization or statistical pixel values conversion (std units)\n
                         such as: mean(I) -> 0, var(I) -> 1 by (I - mean(I)) / std(I), if std(I) >= 1e-9\n
 
-        suppress_warnings : bool, Optional\n
+        suppress_warnings : bool, optional\n
             If True, this method won't throw any UserWarning, in particular about detected too noisy or flat image to be converted.\n
 
         Raises
@@ -1146,7 +1147,7 @@ class UscopeScene:
         return target
 
     @staticmethod
-    def is_image_too_noisy(img: np.ndarray) -> Tuple[bool, str]:
+    def is_image_too_noisy(img: np.ndarray) -> tuple[bool, str]:
         """
         Check if the provided image contains some signal or just noise.
 
@@ -1157,7 +1158,7 @@ class UscopeScene:
 
         Returns
         -------
-        Tuple[bool, str] \n
+        tuple[bool, str] \n
             First variable is True, if image is defined as containing noise only,\n
             second variable - report about the possible reasons if first is True.
 
@@ -1205,7 +1206,7 @@ class FluorObj:
 
     # Class parameters
     shape_type: str = ""; border_type: str = ""; shape_method: str = ""; explicit_shape_name: str = ""
-    profile: Optional[np.ndarray] = None  # holds an image (profile) of the object
+    profile: np.ndarray | None = None  # holds an image (profile) of the object
     __acceptable_shape_types: list = ['round', 'r', 'ellipse', 'el', 'curved', 'c']  # shape types of the object
     __acceptable_border_types: list = ['precise', 'pr', 'computed', 'co']; radius: float = 0.0; a: float = 0.0; b: float = 0.0
     typical_sizes: tuple = ()  # for storing descriptive parameters for curve describing the shape of the object
@@ -1215,14 +1216,14 @@ class FluorObj:
                                         'ovcir', 'undersampled circle', 'uncir', 'circle', 'c']
     valuable_round_shapes: list = ['bump cube', 'bump ^8', 'gaussian']   # more natural looking structures
     image_type = None; center_shifts: tuple = (0.0, 0.0)   # subpixel shift of the center of the object
-    casted_profile: Optional[np.ndarray] = None  # cast profile to a normalized one for a provided image in a method
+    casted_profile: np.ndarray | None = None  # cast profile to a normalized one for a provided image in a method
     __profile_cropped: bool = False  # flag for setting if the profile was cropped (zero pixel rows / columns removed)
     external_upper_coordinates: tuple = (0, 0)  # external image coordinates of the upper left pixel
     __external_image_sizes: tuple = (0, 0)   # sizes of an external image coordinates of the upper left pixel
     within_image: bool = False  # flag for checking that the profile is still within the image
 
-    def __init__(self, typical_size: Union[Union[int, float], Tuple[Union[int, float], Union[int, float], float]],
-                 center_shifts: Tuple[Union[int, float], Union[int, float]] = (0.0, 0.0), shape_type: str = 'round',
+    def __init__(self, typical_size: int | float | tuple[int | float, int | float, float],
+                 center_shifts: tuple[int | float, int | float] = (0.0, 0.0), shape_type: str = 'round',
                  border_type: str = 'precise', shape_method: str = ''):
         """
         Initialize the class representation of a fluorescent object.
@@ -1358,8 +1359,8 @@ class FluorObj:
         print(info_str, flush=True)
 
     # %% Calculate and plot shape
-    def get_shape(self, center_shifts: Optional[Tuple[Union[int, float], Union[int, float]]] = None,
-                  accelerated: bool = False) -> Optional[np.ndarray]:
+    def get_shape(self, center_shifts: tuple[int | float, int | float] | None = None,
+                  accelerated: bool = False) -> np.ndarray | None:
         """
         Calculate and return 2D intensity normalized (to the range [0.0, 1.0]) distribution of the object shape.
 
@@ -1425,7 +1426,7 @@ class FluorObj:
         return self.profile
 
     def get_casted_shape(self, max_pixel_value: Union[int, float],
-                         image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') -> Optional[np.ndarray]:
+                         image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') -> np.ndarray | None:
         """
         Calculate cast from the computed normalized object shape.
 
@@ -1469,7 +1470,7 @@ class FluorObj:
         else:
             self.casted_profile = None; return self.casted_profile
 
-    def crop_shape(self) -> Optional[np.ndarray]:
+    def crop_shape(self) -> np.ndarray | None:
         """
         Crop zero intensity parts (borders) of the computed profile.
 
