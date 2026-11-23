@@ -9,14 +9,13 @@ Computational utility functions for 'fluoscenepy'.
 import random
 import time
 from contextlib import suppress
-from typing import Tuple, Union
 
 import numpy as np
 
 
 # %% Function defs.
-def get_random_shape_props(mean_size: Union[Union[int, float], tuple],
-                           size_std: Union[Union[int, float], tuple]) -> Tuple['str', Union[int, float], Union[int, float]]:
+def get_random_shape_props(mean_size: int | float | tuple[int | float, int | float],
+                           size_std: int | float | tuple[int | float, int | float]) -> tuple[str, int | float, int | float]:
     """
     Select object properties from the provided parameters.
 
@@ -24,9 +23,9 @@ def get_random_shape_props(mean_size: Union[Union[int, float], tuple],
 
     Parameters
     ----------
-    mean_size : Union[Real, tuple]
+    mean_size : int, float or tuple
         Property to select from.
-    size_std : Union[Real, tuple]
+    size_std : int, float or tuple
         Property to select from.
 
     Returns
@@ -35,7 +34,7 @@ def get_random_shape_props(mean_size: Union[Union[int, float], tuple],
         Selected (shape_type, mean_size, size_std).
 
     """
-    shape_type: str; r: Union[int, float]; r_std: Union[int, float]
+    shape_type: str; r: int | float; r_std: int | float
     shape_type = random.choice(['round', 'ellipse'])  # select between two supported types of objects
     # Define radius and radius std for round particles from the provided tuples for the ellipses (random choice between a and b)
     if isinstance(mean_size, tuple):
@@ -70,7 +69,7 @@ def get_random_central_shifts() -> tuple:
     return i_shift, j_shift
 
 
-def get_random_max_intensity(intensity_range: Tuple[Union[int, float], Union[int, float]]) -> Union[int, float]:
+def get_random_max_intensity(intensity_range: tuple[int | float, int | float]) -> int | float:
     """
     Select the intensity from the provided min, max range.
 
@@ -81,12 +80,12 @@ def get_random_max_intensity(intensity_range: Tuple[Union[int, float], Union[int
 
     Returns
     -------
-    Union[int, float]
+    int or float
         Returning the maximum intensity of the profile.
 
     """
     min_intensity, max_intensity = intensity_range  # assuming that only 2 values provided, if not - will throw an Exception
-    fl_intensity: Union[int, float]  # can be either of two types
+    fl_intensity: int | float
     # Random selection of max intensity for the profile casting
     if isinstance(min_intensity, int) and isinstance(max_intensity, int):
         fl_intensity = random.randrange(min_intensity, max_intensity)  # 1 - default step
@@ -97,20 +96,19 @@ def get_random_max_intensity(intensity_range: Tuple[Union[int, float], Union[int
     return fl_intensity
 
 
-def get_radius_gaussian(r: Union[Union[int, float], None], r_std: Union[Union[int, float], None], mean_size: Union[int, float],
-                        size_std: Union[int, float]) -> float:
+def get_radius_gaussian(r: int | float | None, r_std: int | float | None, mean_size: int | float, size_std: int | float) -> float:
     """
     Get the random Gaussian-distributed radius.
 
     Parameters
     ----------
-    r : Union[Union[int, float], None]
+    r : int, float or None
         Selected radius.
-    r_std : Union[Union[int, float], None]
+    r_std : int, float or None
         Selected radius STD.
-    mean_size : Union[int, float]
+    mean_size : int or float
         Directly provided parameter by the method call if r is None.
-    size_std : Union[int, float]
+    size_std : int or float
         Directly provided parameter by the method call if r_std is None.
 
     Raises
@@ -137,8 +135,8 @@ def get_radius_gaussian(r: Union[Union[int, float], None], r_std: Union[Union[in
     return radius
 
 
-def get_ellipse_sizes(mean_size: Tuple[Union[int, float], Union[int, float]],
-                      size_std: Tuple[Union[int, float], Union[int, float]]) -> Tuple[float, float, float]:
+def get_ellipse_sizes(mean_size: tuple[int | float, int | float],
+                      size_std: tuple[int | float, int | float]) -> tuple[float, float, float]:
     """
     Get the randomly Gaussian distributed axes sizes a, b and uniformly distributed angle.
 

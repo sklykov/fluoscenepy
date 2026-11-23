@@ -8,7 +8,6 @@ Script with various object profiles generation functions.
 """
 # %% Imports
 from math import cos, e, sin
-from typing import Tuple, Union  # for making type hints for the package compliant with Python >= 3.8
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,8 +17,8 @@ from matplotlib.patches import Circle, Ellipse
 
 
 # %% Utility functions
-def distance_f(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float],
-               j_centre: Union[int, float]) -> Union[float, np.ndarray]:
+def distance_f(i_px: int | float | np.ndarray, j_px: int | float | np.ndarray, i_centre: int | float,
+               j_centre: int | float) -> float | np.ndarray:
     """
     Calculate the distances for pixels.
 
@@ -43,25 +42,24 @@ def distance_f(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.n
     return np.round(np.sqrt(np.power(i_px - i_centre, 2) + np.power(j_px - j_centre, 2)), 6)
 
 
-def ellipse_equation(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float],
-                     j_centre: Union[int, float], a: Union[int, float], b: Union[int, float],
-                     angle: Union[int, float]) ->  Union[float, np.ndarray]:
+def ellipse_equation(i_px: int | float | np.ndarray, j_px: int | float | np.ndarray, i_centre: int | float,
+                     j_centre: int | float, a: int | float, b: int | float, angle: int | float) -> float | np.ndarray:
     """
     Calculate the ellipse equation ratio for the defining if the point (i_px, j_px) lays inside an ellipse.
 
     Parameters
     ----------
-    i_px : Union[int, float, np.ndarray]
+    i_px : int, float or np.ndarray
         Point (pixel) coordinate i.
-    j_px : Union[int, float, np.ndarray]
+    j_px : int, float or np.ndarray
         Point (pixel) coordinate j.
-    i_centre : Union[int, float]
+    i_centre : int or float
         i coordinate of the center of ellipse (center of mass).
-    j_centre : Union[int, float]
+    j_centre : int or float
         j coordinate of the center of ellipse (center of mass).
-    a : Union[int, float]
+    a : int or float
         'a' ellipse axis in pixels.
-    b : Union[int, float]
+    b : int or float
         'b' ellipse axis in pixels.
     angle : Union[int, float]
         angle between 'a' axis and 'X' axis.
@@ -479,18 +477,18 @@ def discrete_shaped_bead(r: float, center_shifts: tuple) -> np.ndarray:
 
 
 # %% 2D shape representation calculation for the object with ellipse shape
-def discrete_shaped_ellipse(sizes: Tuple[Union[int, float], Union[int, float]], angle: float,
-                            center_shifts: Tuple[Union[int, float], Union[int, float]], verbose_plots: bool = False) -> np.ndarray:
+def discrete_shaped_ellipse(sizes: tuple[int | float, int | float], angle: float,
+                            center_shifts: tuple[int | float, int | float], verbose_plots: bool = False) -> np.ndarray:
     """
     Calculate ellipse shape project on the pixels.
 
     Parameters
     ----------
-    sizes : Tuple[Real, Real]
+    sizes : tuple of real numbers
         Sizes a, b for an ellipse.
     angle : float
         Angle (counter-clockwise) between b and X axes.
-    center_shifts : Tuple[Real, Real]
+    center_shifts : tuple of real numbers
         Pixelwise shifts of an ellipse center.
     verbose_plots : bool, optional
         Plotting of border sections of an ellipse. The default is False.

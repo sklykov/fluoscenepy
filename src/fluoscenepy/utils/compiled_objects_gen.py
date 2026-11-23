@@ -9,8 +9,6 @@ Wrapping by using @jit decorators from numba library.
 
 """
 # %% Imports
-from typing import Union
-
 import numpy as np
 
 # %% Checking and import the numba library for speeding up the calculation
@@ -24,8 +22,8 @@ except ModuleNotFoundError:
 
 # %% Utility functions for round shaped objects (simple one for achieving acceleration by using numba library compilation)
 @njit(cache=True)
-def distance_f_acc(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float],
-                   j_centre: Union[int, float]) -> Union[float, np.ndarray]:
+def distance_f_acc(i_px: int | float | np.ndarray, j_px: int | float | np.ndarray, i_centre: int | float,
+                   j_centre: int | float) -> float | np.ndarray:
     """
     Calculate the distances for pixels accelerated by numba compilation.
 
@@ -153,24 +151,24 @@ def discrete_shaped_bead_acc(r: float, center_shifts: tuple) -> np.ndarray:
 
 # %% Utility functions for ellipse shaped objects (simple one for achieving acceleration by using numba library compilation)
 @njit(cache=True)
-def ellipse_equation_acc(i_px: Union[int, float, np.ndarray], j_px: Union[int, float, np.ndarray], i_centre: Union[int, float],
-                         j_centre: Union[int, float], a: Union[int, float], b: Union[int, float], angle: Union[int, float]) -> float:
+def ellipse_equation_acc(i_px: int | float | np.ndarray, j_px: int | float | np.ndarray, i_centre: int | float,
+                         j_centre: int | float, a: int | float, b: int | float, angle: int | float) -> float:
     """
     Calculate the ellipse equation ratio for the defining if the point (i_px, j_px) lays inside an ellipse accelerated by numba compilation.
 
     Parameters
     ----------
-    i_px : Union[int, float, np.ndarray]
+    i_px : int, float or np.ndarray
         Point (pixel) coordinate i.
-    j_px : Union[int, float, np.ndarray]
+    j_px : int, float or np.ndarray
         Point (pixel) coordinate j.
-    i_centre : Union[int, float]
+    i_centre : int or float
         i coordinate of the center of ellipse (center of mass).
-    j_centre : Union[int, float]
+    j_centre : int or float
         j coordinate of the center of ellipse (center of mass).
-    a : Union[int, float]
+    a : int or float
         'a' ellipse axis in pixels.
-    b : Union[int, float]
+    b : int or float
         'b' ellipse axis in pixels.
     angle : Union[int, float]
         angle between 'a' axis and 'X' axis.

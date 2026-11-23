@@ -13,7 +13,6 @@ import random
 import time
 import warnings
 from pathlib import Path
-from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -49,6 +48,9 @@ if numba_installed:
     from .utils.compiled_objects_gen import discrete_shaped_bead_acc, discrete_shaped_ellipse_acc
 
 
+_ImageType = str | type[np.uint8] | type[np.uint16] | type[np.float64]
+
+
 # %% Scene (image) class def.
 class UscopeScene:
     """
@@ -66,19 +68,18 @@ class UscopeScene:
 
     # Class parameters
     width: int = 4; height: int = 4; __warn_message: str = ""; max_pixel_value: int | float | np.integer | np.floating = 255
-    img_type: DTypeLike = np.uint8; acceptable_img_types: tuple[str, ...] = ('uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64)  # TODO provide proper annotation
+    img_type: DTypeLike = np.uint8
+    acceptable_img_types: tuple[_ImageType, ...] = ('uint8', 'uint16', 'float', np.uint8, np.uint16, np.float64)
     shape: tuple[int, int] = (height, width); shape_types: tuple[str, ...] = ('mixed', 'round', 'r', 'ellipse', 'el')
     image: np.ndarray | None = None  # now, image can be None as well as np.ndarray after generation
     __image_cleared: bool = True  # for tracking that the scene was cleared (zeroed)
     __available_coordinates: list = []; __binary_placement_mask: np.ndarray | None = None
     denoised_image: np.ndarray | None = None  # keep copy of an initial, free from noise image
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
-    # placeholders for classes used for precompilation of methods by numba
-    __round_fl_obj: "FluorObj" | None = None; __ellipse_fl_obj: "FluorObj" | None = None
     # short identifiers for the supported casting options as strings
-    __cast_options: tuple[str, ...]= ("neg.norm.", "int8", "int16", "norm", "uint8", "uint16", "0,1", "min-max", "z-score")
+    __cast_options: tuple[str, ...] = ("neg.norm.", "int8", "int16", "norm", "uint8", "uint16", "0,1", "min-max", "z-score")
 
-    def __init__(self, width: int, height: int, image_type: str | np.uint8 | np.uint16 | np.float64 = 'uint8',
+    def __init__(self, width: int, height: int, image_type: _ImageType = 'uint8',
                  numba_precompile: bool = True):
         """
         Initialize the class wrapper for store the current "scene" or microscopic image.
@@ -89,8 +90,8 @@ class UscopeScene:
             Width of the scene in pixels. \n
         height : int \n
             Height of the scene in pixels. \n
-        image_type : str | np.uint8 | np.uint16 | np.float64, optional \n
-            Image type, for supported ones see the acceptable types. The default is 'uint8'. \n
+        image_type : str or NumPy scalar type, optional \n
+            One of 'uint8', 'uint16', 'float', np.uint8, np.uint16 or np.float64. The default is 'uint8'. \n
         numba_precompile : bool, optional \n
             Flag for precompilation of computing methods using 'numba' library (if it's installed). The default is True.
 
@@ -125,11 +126,9 @@ class UscopeScene:
         self.image = np.zeros(shape=(height, width), dtype=self.img_type)
         self.__image_cleared = True; self.shape = (self.height, self.width)
         self.methods_precompiled = False  # flag for retaining if the objects shape calculation methods precompiled
-        self.fluo_objects = []  # initially, no objects generated
+        self.fluo_objects: list[FluorObj] = []  # initially, no objects are stored
         # Precompile of calculation methods for making calculations more convenient
         if numba_precompile and numba_installed:
-            self.__round_fl_obj = FluorObj(typical_size=2.02, center_shifts=(0.1, -0.2))
-            self.__ellipse_fl_obj = FluorObj(typical_size=(2.02, 1.52, np.pi / 3.0), center_shifts=(-0.1, 0.2), shape_type='ellipse')
             self.precompile_methods()
 
     # %% Objects specification / generation
@@ -137,7 +136,7 @@ class UscopeScene:
     def get_random_objects(cls, mean_size: int | float | tuple[int | float, int | float],
                            size_std: int | float | tuple[int | float, int | float],
                            intensity_range: tuple[int | float, int | float],
-                           n_objects: int = 2, shapes: str = 'round', image_type: str | np.uint8 | np.uint16 | np.float64 = 'uint8',
+                           n_objects: int = 2, shapes: str = 'round', image_type: _ImageType = 'uint8',
                            verbose_info: bool = False, accelerated: bool = False) -> tuple["FluorObj", ...]:
         """
         Generate objects with randomized shape sizes, for shape types: 'round', 'ellipse', 'mixed' (random choice between first two).
@@ -146,9 +145,9 @@ class UscopeScene:
 
         Parameters
         ----------
-        mean_size : Union[Union[int, float], tuple] \n
+        mean_size : int, float or tuple \n
             Mean size(-s) of randomized objects. Integer or float is supposed to be used for round particles, tuple - for ellipse. \n
-        size_std : Union[Union[int, float], tuple] \n
+        size_std : int, float or tuple \n
             Standard deviation of mean size(-s). \n
         intensity_range : tuple \n
             (Min, Max) intensities for randomized choice of the maximum intensity along the profile. \n
@@ -156,7 +155,7 @@ class UscopeScene:
             Number of generated objects. The default is 2. \n
         shapes : str, optional \n
             Implemented in FluorObj() shapes: 'round', 'ellipse' or 'mixed' them (randomly selected). The default is 'round'. \n
-        image_type : Union[str, np.uint8, np.uint16, np.float64], optional \n
+        image_type : str or NumPy scalar type, optional \n
             Image type of the scene on which the objects will be placed and cast to. The default is 'uint8'. \n
         verbose_info : bool, optional \n
             Flag for printing out verbose information about the generation progress (use it for many objects generation).
@@ -228,9 +227,10 @@ class UscopeScene:
             print_out_elapsed_t(t_ov_1, operation="Overall generation")
         return tuple(fl_objects)
 
-    def get_objects_acc(self, mean_size: Union[Union[int, float], tuple], size_std: Union[Union[int, float], tuple], intensity_range: tuple,
-                        n_objects: int = 2, shapes: str = 'round', image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8',
-                        verbose_info: bool = False) -> tuple:
+    def get_objects_acc(self, mean_size: int | float | tuple[int | float, int | float],
+                        size_std: int | float | tuple[int | float, int | float], intensity_range: tuple[int | float, int | float],
+                        n_objects: int = 2, shapes: str = 'round', image_type: _ImageType = 'uint8',
+                        verbose_info: bool = False) -> tuple["FluorObj", ...]:
         """
         Generate objects with randomized shape sizes, for shape types: 'round', 'ellipse', 'mixed' (random choice between first two).
 
@@ -239,9 +239,9 @@ class UscopeScene:
 
         Parameters
         ----------
-        mean_size : Union[Union[int, float], tuple]  \n
+        mean_size : int, float or tuple \n
             Mean size(-s) of randomized objects. Integer or float is supposed to be used for round particles, tuple - for ellipse. \n
-        size_std : Union[Union[int, float], tuple]  \n
+        size_std : int, float or tuple \n
             Standard deviation of mean size(-s). \n
         intensity_range : tuple  \n
             (Min, Max) intensities for randomized choice of the maximum intensity along the profile.  \n
@@ -249,7 +249,7 @@ class UscopeScene:
             Number of generated objects. The default is 2.  \n
         shapes : str, optional  \n
             Implemented in FluorObj() shapes: 'round', 'ellipse' or 'mixed' them (randomly selected). The default is 'round'.   \n
-        image_type : Union[str, np.uint8, np.uint16, np.float64], optional  \n
+        image_type : str or NumPy scalar type, optional \n
             Image type of the scene on which the objects will be placed and cast to. The default is 'uint8'.  \n
         verbose_info : bool, optional  \n
             Flag for printing out verbose information about the generation progress (use it for many objects generation).
@@ -335,18 +335,19 @@ class UscopeScene:
         if not self.methods_precompiled:
             if verbose_info:
                 t_ov_1 = time.perf_counter()
-            if self.__round_fl_obj is None or self.__ellipse_fl_obj is None:
-                self.__round_fl_obj = FluorObj(typical_size=2.02, center_shifts=(0.1, -0.2))
-                self.__ellipse_fl_obj = FluorObj(typical_size=(2.02, 1.52, np.pi / 3.0), center_shifts=(-0.1, 0.2), shape_type='ellipse')
-            self.__round_fl_obj.get_shape(accelerated=True); self.__ellipse_fl_obj.get_shape(accelerated=True)
+            # Compile both shape paths using temporary objects
+            round_obj = FluorObj(typical_size=2.02, center_shifts=(0.1, -0.2))
+            ellipse_obj = FluorObj(typical_size=(2.02, 1.52, np.pi / 3.0), center_shifts=(-0.1, 0.2), shape_type='ellipse')
+            round_obj.get_shape(accelerated=True)
+            ellipse_obj.get_shape(accelerated=True)
             self.methods_precompiled = True
             if verbose_info:
                 print_out_elapsed_t(t_ov_1, "*** Precompilation")
         return self.methods_precompiled
 
     @staticmethod
-    def get_round_objects(mean_size: float, size_std: float, intensity_range: tuple, n_objects: int = 2, shape_r_type: str = 'mixed',
-                          image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') -> tuple:
+    def get_round_objects(mean_size: float, size_std: float, intensity_range: tuple[int | float, int | float], n_objects: int = 2,
+                          shape_r_type: str = 'mixed', image_type: _ImageType = 'uint8') -> tuple["FluorObj", ...]:
         """
         Generate round shaped objects (as FluorObj class instances) with continuous shapes (see FluorObj class documentation).
 
@@ -362,7 +363,7 @@ class UscopeScene:
             Number of generated objects. The default is 2. \n
         shape_r_type : str, optional \n
             Acceptable by FluorObj class round and computed shape types. The default is 'mixed'. \n
-        image_type : Union[str, np.uint8, np.uint16, np.float64], optional \n
+        image_type : str or NumPy scalar type, optional \n
             Type of image used for a scene. The default is 'uint8'. \n
 
         Returns
@@ -371,7 +372,7 @@ class UscopeScene:
             Generated objects.
 
         """
-        fl_objects = []; min_intensity, max_intensity = intensity_range; fl_intensity: Union[int, float]
+        fl_objects = []; min_intensity, max_intensity = intensity_range; fl_intensity: int | float
         shape_types = FluorObj.valuable_round_shapes[:]; random.shuffle(shape_types)
         for _ in range(n_objects):
             # Random selection of central shifts for placement
@@ -653,13 +654,13 @@ class UscopeScene:
         fluo_objects : tuple, optional  \n
             Fluorescent objects, instances of FluorObj class, packed in a tuple. The default is (). \n
         save_objects : bool, optional \n
-            If True, will save (append) objects in the class attribute 'fluo_objects'. The default is True. \n
+            If True, append the objects to this scene's 'fluo_objects' list. The default is True. \n
             Note that, if it's False, then before placing the objects, the scene will be cleared
             (stored before objects will be removed from it). \n
         save_only_objects_inside : bool, optional \n
-            Save in the class attribute ('fluo_objects') only objects that are inside the image. The default is False. \n
+            Save only objects that are inside the image. The default is False. \n
         rewrite_objects : bool, optional \n
-            If True, it forces to substitute stored objects in the class attribute 'fluo_objects' with the provided ones.
+            If True, replace this scene's saved objects with the provided objects.
             The default is False. \n
 
         Returns
@@ -722,7 +723,7 @@ class UscopeScene:
 
     def recreate_scene(self):
         """
-        Recreate the saved objects in the class attribute 'fluo_objects' on the cleared before scene.
+        Redraw this scene's saved objects after the image has been cleared.
 
         Returns
         -------
@@ -808,8 +809,8 @@ class UscopeScene:
         return self.__image_cleared
 
     # %% Adding shot and detector noise
-    def add_noise(self, seed: int | None = None, mean_g: Union[int, float, None] = None,
-                  sigma_g: Union[int, float, None] = None, gain_p: float = 1.0) -> np.ndarray | None:
+    def add_noise(self, seed: int | None = None, mean_g: int | float | None = None,
+                  sigma_g: int | float | None = None, gain_p: float = 1.0) -> np.ndarray | None:
         """
         Add pixelwise at first Poisson (signal dependent shot noise) and after background (Gaussian or detector) noise.
 
@@ -822,9 +823,9 @@ class UscopeScene:
         ----------
         seed : int, optional \n
             Long integer for initializing pseudorandom generator for repeating generated sequences. The default is None. \n
-        mean_g : Union[int, float, None], optional \n
+        mean_g : int, float or None, optional \n
             Mean for additive Gaussian noise. If None, will be set to 0.125*(max pixel value in an image). The default is None. \n
-        sigma_g : Union[int, float, None], optional \n
+        sigma_g : int, float or None, optional \n
             Sigma for additive Gaussian noise. If None, will be set to 0.04125*(max pixel value in an image). The default is None. \n
         gain_p: float, optional \n
             Gain (alpha) parameter for multiplying of Poisson distributed value of pixel intensity. The default is 1.0. \n
@@ -893,8 +894,8 @@ class UscopeScene:
         return self.image
 
     @staticmethod
-    def noise2image(image: np.ndarray, seed: int | None = None, mean_g: Union[int, float, None] = None,
-                    sigma_g: Union[int, float, None] = None, gain_p: float = 1.0) -> np.ndarray:
+    def noise2image(image: np.ndarray, seed: int | None = None, mean_g: int | float | None = None,
+                    sigma_g: int | float | None = None, gain_p: float = 1.0) -> np.ndarray:
         """
         Add pixelwise at first Poisson (signal dependent shot noise) and after background (Gaussian or detector) noise.
 
@@ -909,9 +910,9 @@ class UscopeScene:
             2D array as an image.\n
         seed : int, optional\n
             Integer seed used for repeatability of numpy random generation methods. The default is None.
-        mean_g : Union[int, float, None], optional\n
+        mean_g : int, float or None, optional\n
             rng.normal(mean_g, sigma_g...) - used in this call. The default is None (mean = 0.125*max(source_image)).\n
-        sigma_g : Union[int, float, None], optional\n
+        sigma_g : int, float or None, optional\n
             rng.normal(mean_g, sigma_g...) - used in this call. The default is None (sigma = 0.04125*max(source_image)).\n
         gain_p: float, optional \n
             Gain (alpha) parameter for multiplying of Poisson distributed value of pixel intensity. The default is 1.0. \n
@@ -935,7 +936,7 @@ class UscopeScene:
 
         """
         source_image = np.copy(image)  # to guarantee that input image is not modified
-        max_pixel_value: Union[np.integer, float]
+        max_pixel_value: np.integer | float
         # Initialize random generator using provided seed
         if seed is None:
             rng = np.random.default_rng()
@@ -1215,7 +1216,8 @@ class FluorObj:
                                         'bump2', 'bump cube', 'bump3', 'bump ^8', 'bump8', 'smooth circle', 'smcir', 'oversampled circle',
                                         'ovcir', 'undersampled circle', 'uncir', 'circle', 'c']
     valuable_round_shapes: list = ['bump cube', 'bump ^8', 'gaussian']   # more natural looking structures
-    image_type = None; center_shifts: tuple = (0.0, 0.0)   # subpixel shift of the center of the object
+    image_type: _ImageType | None = None
+    center_shifts: tuple = (0.0, 0.0)   # subpixel shift of the center of the object
     casted_profile: np.ndarray | None = None  # cast profile to a normalized one for a provided image in a method
     __profile_cropped: bool = False  # flag for setting if the profile was cropped (zero pixel rows / columns removed)
     external_upper_coordinates: tuple = (0, 0)  # external image coordinates of the upper left pixel
@@ -1232,7 +1234,7 @@ class FluorObj:
 
         Parameters
         ----------
-        typical_size : Union[Union[int, float], tuple] \n
+        typical_size : int, float or tuple \n
             Typical sizes of the object, e.g. for a bead - diameter (float or int - Real number in general),
             for ellipse - tuple with axes a, b and angle in radians (3 values). \n
         center_shifts : tuple, optional \n
@@ -1425,16 +1427,15 @@ class FluorObj:
         self.__profile_cropped = False  # set it to the default value, the profile is uncropped
         return self.profile
 
-    def get_casted_shape(self, max_pixel_value: Union[int, float],
-                         image_type: Union[str, np.uint8, np.uint16, np.float64] = 'uint8') -> np.ndarray | None:
+    def get_casted_shape(self, max_pixel_value: int | float, image_type: _ImageType = 'uint8') -> np.ndarray | None:
         """
         Calculate cast from the computed normalized object shape.
 
         Parameters
         ----------
-        max_pixel_value :  Union[int, float] \n
+        max_pixel_value : int or float \n
             Maximum intensity or pixel value of the object. \n
-        image_type : Union[str, np.uint8, np.uint16, np.float64], optional \n
+        image_type : str or NumPy scalar type, optional \n
             Type for casting. The default is 'uint8'. \n
 
         Raises

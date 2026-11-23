@@ -6,7 +6,6 @@ Computational compiled utility functions for 'fluoscenepy'.
 
 """
 # %% Global Imports
-from typing import List, Tuple
 
 import numpy as np
 from numba import njit
@@ -14,7 +13,7 @@ from numba import njit
 
 # %% Func. defs.
 @njit(cache=True)
-def generate_coordinates_list(i_s: int, i_f: int, j_s: int, j_f: int) -> List[Tuple[int, int]]:
+def generate_coordinates_list(i_s: int, i_f: int, j_s: int, j_f: int) -> list[tuple[int, int]]:
     """
     Generate list with indices in tuples within provided ranges.
 

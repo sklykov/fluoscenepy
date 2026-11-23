@@ -10,6 +10,8 @@ While this may sound ambitious, please consider it as an earnest attempt to prov
 as evaluating image processing workflows, rather than a fully established or peer-reviewed solution. It is a work in progress, 
 intended to support experimental analyses rather than to represent a finalized, validated methodology.
 
+Requires Python 3.10 or newer.
+
 ### Rationale for Project Development
 Although there are numerous advanced projects (for instance, [Synthetic objects generation](https://github.com/applied-systems-biology/DeconvTest/blob/3b83758a8956e93879734292e27ea1259c9e54fe/DeconvTest/modules/input_objects.py) 
 of the [DeconvTest](https://github.com/applied-systems-biology/DeconvTest) project) that address the task of simulating objects commonly found 
