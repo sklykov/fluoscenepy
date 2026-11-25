@@ -795,6 +795,8 @@ class UscopeScene:
         if not self.__image_cleared:
             self.image = np.zeros(shape=(self.height, self.width), dtype=self.img_type)
             self.__binary_placement_mask = None; self.__image_cleared = True
+            if self.__noise_added and self.denoised_image is not None:  # clear also stored noise-free image
+                self.denoised_image = None; self.__noise_added = False
 
     def is_blank(self) -> bool:
         """
@@ -870,7 +872,7 @@ class UscopeScene:
                         if raw_pixels[i, j] > self.max_pixel_value:
                             raw_pixels[i, j] = self.max_pixel_value  # check that the pixel values are still in range with the image type
                     else:
-                        raw_pixels[i, j] = noisy_background[i, j]
+                        raw_pixels[i, j] = noisy_background[i, j] if noisy_background[i, j] < self.max_pixel_value else self.max_pixel_value
             # Casting the noisy image back to the original image format
             if self.img_type == 'uint16' or self.img_type is np.uint16 or self.img_type == 'uint8' or self.img_type is np.uint8:
                 self.image = np.round(raw_pixels, 0).astype(self.img_type)
@@ -969,7 +971,7 @@ class UscopeScene:
                     if raw_pixels[i, j] > max_pixel_value:
                         raw_pixels[i, j] = max_pixel_value  # check that the pixel values are still in range with the image type
                 else:
-                    raw_pixels[i, j] = noisy_background[i, j]
+                    raw_pixels[i, j] = noisy_background[i, j] if noisy_background[i, j] < max_pixel_value else max_pixel_value
         # Casting the noisy image back to the original image format
         if source_image.dtype == np.uint8 or source_image.dtype == np.uint16:
             noisy_image = np.round(raw_pixels, 0).astype(source_image.dtype)
@@ -1150,7 +1152,13 @@ class UscopeScene:
     @staticmethod
     def is_image_too_noisy(img: np.ndarray) -> tuple[bool, str]:
         """
-        Check if the provided image contains some signal or just noise.
+        Check if the provided image contains some signal or just almost noise.
+
+        "Too noisy" criteria: \n
+        1. If SNR estimated, then image is "too noisy" for SNR < 5.0; \n
+        2. If SNR hasn't been estimated, then image is "too noisy" if 99% percentile of all
+        pixel values is less than selected absolute min. pixel value, which is selected 
+        between 1e-6, 1e-9, 1e-12 values based on max abs. pixel value of an input image.
 
         Parameters
         ----------

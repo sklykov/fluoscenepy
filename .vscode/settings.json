@@ -1,0 +1,10 @@
+{
+    "chat.disableAIFeatures": true,
+    "python.analysis.languageServerMode": "full",
+    "[python]": {
+        "editor.formatOnSave": false,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit"
+        }
+    }
+}
