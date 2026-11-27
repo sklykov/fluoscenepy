@@ -78,7 +78,7 @@ class UscopeScene:
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
     # short identifiers for the supported casting options as strings
     __cast_options: tuple[str, ...] = ("neg.norm.", "int8", "int16", "norm", "uint8", "uint16", "0,1", "min-max", "z-score")
-    __noise_props: tuple[int, float, float, float] | None = None
+    __noise_props: tuple[int | None, int | float | None, int | float | None, float] | None = None
 
     def __init__(self, width: int, height: int, image_type: _ImageType = 'uint8',
                  numba_precompile: bool = True):
@@ -697,8 +697,9 @@ class UscopeScene:
                                     self.__image_cleared = False
                             m += 1  # next column of the cast profile
                         k += 1  # next row of the cast profile
-            if self.__noise_added and self.__noise_props is not None:
-                self.add_noise(*self.__noise_props)
+            if self.__noise_added and self.__noise_props is not None and self.image is not None:
+                self.denoised_image = self.image.copy()  # put the image with newly placed objects as a noise-free one
+                self.add_noise(*self.__noise_props)  # re-apply the used before noise properties
             if save_objects:
                 l_fluo_objects = list(fluo_objects)  # conversion input tuple to the list
                 if save_only_objects_inside:
@@ -857,7 +858,7 @@ class UscopeScene:
         # Make the estimation of mean and sigma for a normal distribution to be based on the original noiseless image
         if self.__noise_added and self.denoised_image is not None:
             self.image = self.denoised_image.copy()  # since the the image used later for adding a noise
-        elif not self.__noise_added:
+        elif not self.__noise_added and self.image is not None:
             self.denoised_image = self.image.copy()  # copy initial scene without noise
         # Adding noise pixelwise
         if not self.__image_cleared and self.image is not None:
@@ -1045,7 +1046,9 @@ class UscopeScene:
                 # Image already contains the negative values
                 if minp < 0.0:
                     # Following logic applied: [-2.0, 0.0, 0.8] -> [-1.0, 0.0, 0.4] - not scaled to [-1.0, 1.0] but normalized to [-1.0, 1.0]
-                    target /= max(abs(minp), abs(maxp))  # simplify the selection of the proper abs max pixel value for scaling
+                    scale = max(abs(minp), abs(maxp))
+                    if scale > 1.0:
+                        target /= scale  # simplify the selection of the proper abs max pixel value for scaling
                     return target
                 # Image has only positive values -> its pixel values should be shifted to the negative end
                 else:
