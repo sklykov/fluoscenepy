@@ -6,6 +6,7 @@ authors = [
     {email = "sergej.klykow@gmail.com"}
 ]
 description = "Simulation of a microscopic image with fluorescent objects featuring round (beads) and elongated shapes"
+keywords = ["fluorescent-microscopic-image-simulation"]
 readme = "README.md"
 # license = {file = "LICENSE"}  # includes the whole text in METADATA, maybe not so convenient
 requires-python = ">=3.10"
@@ -21,8 +22,6 @@ dependencies = [
 performance = ["numba>=0.57.1"]
 dev = ["ruff", "mypy", "pytest"]
 all = ["numba>=0.57.1"]
-
-keywords = ["fluorescent-microscopic-image-simulation"]
 
 [project.urls]  # METADATA in wheel file will represent the data below by using pip show zernpy -v
 # The links below are mapped / parsed by the PyPi website

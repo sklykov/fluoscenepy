@@ -306,7 +306,7 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
     Returns
     -------
     img : numpy.ndarray
-        2D normalized shape of the bead.
+        2D intensity profile. If no sampled pixel has positive intensity, the profile is all zeros.
 
     """
     if bead_type == 'gaussian' or bead_type == 'g':
@@ -393,10 +393,13 @@ def continuous_shaped_bead(r: float, center_shifts: tuple, bead_type: str) -> np
                     img[i, j] = 1.0
             elif (bead_type == 'circle' or bead_type == 'c') and distance <= r + 1E-6:
                 img[i, j] = 1.0  # the border pixels laying in the proximity saved as well
-    # Normalization of profile
+    # Normalize these profiles by their peak intensity
     if (bead_type == 'derivative of logistic func.' or bead_type == 'dlogf' or bead_type == 'bump square' or bead_type == 'bump2'
        or bead_type == 'bump cube' or bead_type == 'bump3' or bead_type == 'bump ^8' or bead_type == 'bump8'):
-        img /= np.max(img)
+        peak = img.max()
+        # A small shifted bead can fall between all sampled pixel centers
+        if peak > 0.0:
+            img /= peak
     return img
 
 

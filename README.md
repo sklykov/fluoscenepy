@@ -95,29 +95,28 @@ Shifted "Precise" Circle:
 ![Shifted Precise Circle](./src/fluoscenepy/readme_images/Precise_bordered_circle_rad_1px_shift(0.24,0).png "Shifted Precise Circle 1px R") 
 
 ### Generation of a microscopic image ("fluorescence scene")
-It can be achieved by placing circular of elliptical particles on the "scene". Check the API documentation for all 
-available methods for making it. 
-One of the straightforward way is just to use methods for generation of objects with random shapes, sizes, maximum intensities, and 
-placed randomly on the scene. The code example: 
+Place circular or elliptical particles in a scene to generate a fluorescence image. The example below generates objects
+with random shapes, sizes, and peak intensities, then places them at random positions within the scene.
+
 ```python
-from fluoscenepy import FluorObj, UscopeScene
+from fluoscenepy import UscopeScene
 samples = UscopeScene.get_random_objects(mean_size=(9.11, 6.56), size_std=(1.15, 0.82), 
                                          shapes='mixed', intensity_range=(185, 252), 
                                          n_objects=12, verbose_info=True)
 scene = UscopeScene(width=62, height=54)
 samples_pl = scene.set_random_places(samples, overlapping=False, touching=False, 
                                      only_within_scene=True, verbose_info=True)
-# Placing objects randomly on the scene, without noise
+# Draw the positioned objects before adding noise
 scene.put_objects_on(samples_pl, save_only_objects_inside=True)
-scene.add_noise()  # adding standard noise
+scene.add_noise()  # Apply the default Poisson and Gaussian noise model
 ```
-For comparison, generated scene without standard for CMOS cameras additional noise:     
+Generated scene before adding noise.
 
-![Scene w/t noise](./src/fluoscenepy/readme_images/Scene_without_noise_1.png "Scene without Noise")
+![Scene without noise](./src/fluoscenepy/readme_images/Scene_without_noise_1.png)
 
-Generated scene with additional noise calculated with default method parameters:    
+The same scene after adding noise with the default parameters.
 
-![Scene w/t noise](./src/fluoscenepy/readme_images/Scene_with_noise_1.png "Scene without Noise")
+![Scene with noise](./src/fluoscenepy/readme_images/Scene_with_noise_1.png)
 
 ### Performance of calculations
 Note that even single 'precise' shaped round object (bead) generation can take around 2 seconds for the diameter 12 pixels
@@ -175,15 +174,20 @@ verification can significantly increase processing time, potentially taking seve
 of a single object.
 
 ### Casting of images
-The target image (2D numpy array) can be cast or transformed with various possible options: "neg.norm.", "int8", "int16",
-"norm", "uint8", "uint16", "0,1", "min-max", "z-score". All conversion implies that the input image contains some signal 
-(not only noise presented or an image is flat, i.e. contains mostly same pixel values). 
-Check auto report formed after calling ***cast_image(...)*** method.   
-Minimal code sample:
-````python
+`UscopeScene.cast_image()` converts or normalizes a 2D NumPy array. If the image is classified as flat or too noisy, the
+method warns and reports the conversion it applied. Pass `suppress_warnings=True` to suppress that warning.
+
+This self-contained example normalizes an image containing a bright square on a dark background.
+
+```python
+import numpy as np
+
 from fluoscenepy import UscopeScene
-img_norm = UscopeScene.cast_image(img, option="0,1")   # normalized to the range [0.0, 1.0] img
-````
+
+img = np.zeros((12, 12), dtype=np.uint16)
+img[4:8, 4:8] = 400  # Set the 4 × 4 square to an intensity of 400
+img_norm = UscopeScene.cast_image(img, option="0,1")  # Map background to 0.0 and the square to 1.0
+```
 Casting rules are depending on the acceptable 'option' variable:  
 'neg.norm.' - outputs np.float64 image normalized to the range [-1.0, 1.0] ('negative normalized');  
 'int8' - outputs np.int8 image rescaled to the range [-127, 127];  

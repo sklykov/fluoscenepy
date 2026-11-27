@@ -83,27 +83,23 @@ class UscopeScene:
     def __init__(self, width: int, height: int, image_type: _ImageType = 'uint8',
                  numba_precompile: bool = True):
         """
-        Initialize the class wrapper for store the current "scene" or microscopic image.
+        Initialize a blank microscopy scene.
 
         Parameters
         ----------
-        width : int \n
-            Width of the scene in pixels. \n
-        height : int \n
-            Height of the scene in pixels. \n
-        image_type : str or NumPy scalar type, optional \n
-            One of 'uint8', 'uint16', 'float', np.uint8, np.uint16 or np.float64. The default is 'uint8'. \n
-        numba_precompile : bool, optional \n
-            Flag for precompilation of computing methods using 'numba' library (if it's installed). The default is True.
+        width : int
+            Width of the scene in pixels, at least 4.
+        height : int
+            Height of the scene in pixels, at least 4.
+        image_type : str or NumPy scalar type, optional
+            One of 'uint8', 'uint16', 'float', np.uint8, np.uint16 or np.float64. The default is 'uint8'.
+        numba_precompile : bool, optional
+            Compile the shape-calculation functions in advance if Numba is installed. The default is True.
 
         Raises
         ------
-        ValueError \n
-            If provided parameters are inconsistent, e.g. width or height < 2. \n
-
-        Returns
-        -------
-        None.
+        ValueError
+            If either dimension is less than 4 pixels or the image type is unsupported.
 
         """
         # Check provided width and height
@@ -1166,7 +1162,7 @@ class UscopeScene:
         "Too noisy" criteria: \n
         1. If SNR estimated, then image is "too noisy" for SNR < 5.0; \n
         2. If SNR hasn't been estimated, then image is "too noisy" if 99% percentile of all
-        pixel values is less than selected absolute min. pixel value, which is selected 
+        pixel values is less than selected absolute min. pixel value, which is selected
         between 1e-6, 1e-9, 1e-12 values based on max abs. pixel value of an input image.
 
         Parameters
