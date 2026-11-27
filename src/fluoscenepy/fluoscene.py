@@ -78,6 +78,7 @@ class UscopeScene:
     __restricted_coordinates: list = []; __noise_added: bool = False  # for tracking that the noise has been added
     # short identifiers for the supported casting options as strings
     __cast_options: tuple[str, ...] = ("neg.norm.", "int8", "int16", "norm", "uint8", "uint16", "0,1", "min-max", "z-score")
+    __noise_props: tuple[int, float, float, float] | None = None
 
     def __init__(self, width: int, height: int, image_type: _ImageType = 'uint8',
                  numba_precompile: bool = True):
@@ -671,6 +672,8 @@ class UscopeScene:
         if len(fluo_objects) > 0:
             if len(self.fluo_objects) == 0 or not save_objects:
                 self.clear_scene()  # clear the scene before placing the objects only if there are no saved objects and the flag is False
+            if self.__noise_added and self.denoised_image is not None:
+                self.image = self.denoised_image.copy()  # use as the source image the noiseless initial image and add noise later
             for fluo_obj in fluo_objects:
                 if fluo_obj.within_image and fluo_obj.casted_profile is not None and self.image is not None:
                     i_start, j_start = fluo_obj.external_upper_coordinates; i_size, j_size = fluo_obj.casted_profile.shape
@@ -694,6 +697,8 @@ class UscopeScene:
                                     self.__image_cleared = False
                             m += 1  # next column of the cast profile
                         k += 1  # next row of the cast profile
+            if self.__noise_added and self.__noise_props is not None:
+                self.add_noise(*self.__noise_props)
             if save_objects:
                 l_fluo_objects = list(fluo_objects)  # conversion input tuple to the list
                 if save_only_objects_inside:
@@ -849,6 +854,12 @@ class UscopeScene:
             rng = np.random.default_rng()
         else:
             rng = np.random.default_rng(seed)
+        # Make the estimation of mean and sigma for a normal distribution to be based on the original noiseless image
+        if self.__noise_added and self.denoised_image is not None:
+            self.image = self.denoised_image.copy()  # since the the image used later for adding a noise
+        elif not self.__noise_added:
+            self.denoised_image = self.image.copy()  # copy initial scene without noise
+        # Adding noise pixelwise
         if not self.__image_cleared and self.image is not None:
             # Add the Gaussian noise (background)
             if mean_g is None:
@@ -859,10 +870,6 @@ class UscopeScene:
             noisy_background = np.where(noisy_background < 0.0, 0.0, noisy_background)  # check that all pixel values are positive
             # Substitute the calculated exact pixel value with the Poisson distributed one due to the properties of commonly used cameras
             h, w = self.image.shape; raw_pixels = np.zeros(shape=self.image.shape)
-            if not self.__noise_added:
-                self.denoised_image = self.image.copy()  # copy initial scene without noise
-            elif self.denoised_image is not None:
-                self.image = self.denoised_image.copy()  # restore the initial image by the copying the content of the denoised image
             # Generate and add noise pixelwise
             for i in range(h):
                 for j in range(w):
@@ -873,6 +880,7 @@ class UscopeScene:
                             raw_pixels[i, j] = self.max_pixel_value  # check that the pixel values are still in range with the image type
                     else:
                         raw_pixels[i, j] = noisy_background[i, j] if noisy_background[i, j] < self.max_pixel_value else self.max_pixel_value
+            self.__noise_props = (seed, mean_g, sigma_g, gain_p)  # retain the used noise properties
             # Casting the noisy image back to the original image format
             if self.img_type == 'uint16' or self.img_type is np.uint16 or self.img_type == 'uint8' or self.img_type is np.uint8:
                 self.image = np.round(raw_pixels, 0).astype(self.img_type)
@@ -1034,14 +1042,12 @@ class UscopeScene:
         if option in cls.__cast_options and not is_img_noisy:
             if option == cls.__cast_options[0]:  # "neg.norm."
                 minp = np.min(target); maxp = np.max(target)
+                # Image already contains the negative values
                 if minp < 0.0:
                     # Following logic applied: [-2.0, 0.0, 0.8] -> [-1.0, 0.0, 0.4] - not scaled to [-1.0, 1.0] but normalized to [-1.0, 1.0]
-                    minpa = np.abs(minp); maxpa = np.abs(maxp)
-                    if minpa > maxpa and minpa > 1.0:
-                        target /= minpa
-                    elif maxpa > minpa and maxpa > 1.0:
-                        target /= maxpa
+                    target /= max(abs(minp), abs(maxp))  # simplify the selection of the proper abs max pixel value for scaling
                     return target
+                # Image has only positive values -> its pixel values should be shifted to the negative end
                 else:
                     target -= 0.5*maxp  # shift image from [0.0 ... max] to [-0.5*max, 0.5*max]
                     maxp = np.max(target)
@@ -1190,7 +1196,7 @@ class UscopeScene:
                 snr = pixels_spread / sigma  # estimates SNR of an image
             else:
                 if pixels_spread > 0:
-                    p25, p75 = np.percentile(target, [25, 75]); sigma = p75 - p25 / 1.349  # use inter quantile estimation of sigma
+                    p25, p75 = np.percentile(target, [25, 75]); sigma = (p75 - p25) / 1.349  # use inter quantile estimation of sigma
                     if sigma > 0.0:
                         snr = pixels_spread / sigma  # estimates SNR of an image
                     else:
