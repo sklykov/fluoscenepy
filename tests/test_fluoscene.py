@@ -20,7 +20,7 @@ from fluoscenepy.utils.comp_funcs import get_ellipse_sizes, get_radius_gaussian
 
 
 # %% Tests
-@pytest.mark.parametrize(("kwargs", "expected_exception"), 
+@pytest.mark.parametrize(("kwargs", "expected_exception"),
                          [({"width": 1, "height": 6}, ValueError),
                           ({"width": 12, "height": 3}, ValueError),
                           ({"width": 4.5, "height": 6}, TypeError),
@@ -47,42 +47,52 @@ def test_scene_initialization(kwargs: dict, expected_exception: Exception):
     with pytest.raises(expected_exception):
         UscopeScene(**kwargs)
 
-        
-@pytest.mark.parametrize(("kwargs1", "kwargs2"), 
-                         [({"width": 51, "height": 100, "image_type": 'uint16'}, 
-                           {"width": 32, "height": 201, "image_type": np.uint16}),
-                          ({"width": 62, "height": 115, "image_type": 'float'}, 
-                           {"width": 31, "height": 222, "image_type": np.float64}),
-                         ])
-def test_scene_img_type_init(kwargs1: dict, kwargs2: dict):
+
+@pytest.mark.parametrize(argnames=("image_type", "expected_dtype", "expected_max"),
+                         argvalues=[pytest.param("uint8", np.uint8, 255, id="uint8-string"),
+                                    pytest.param(np.uint8, np.uint8, 255, id="uint8-type"),
+                                    pytest.param("uint16", np.uint16, 65535, id="uint16-string"),
+                                    pytest.param(np.uint16, np.uint16, 65535, id="uint16-type"),
+                                    pytest.param("float", np.float64, 1.0, id="float-string"),
+                                    pytest.param(np.float64, np.float64, 1.0, id="float64-type"),
+                                    ])
+def test_scene_img_type_init(image_type: str | type[np.generic], expected_dtype: type[np.generic], expected_max: int | float) -> None:
     """
-    Test that differently named but the same image types share the same initialization path.
+    Check that each accepted image type creates a blank scene with the expected format.
 
     Parameters
     ----------
-    kwargs1 : dict
-        Initialization parameters for the 1st class.
-    kwargs2 : dict
-        Initialization parameters for the 2nd class.
+    image_type : str or NumPy scalar type
+        Constructor argument selecting the image format.
+    expected_dtype : type
+        NumPy data type of the image array.
+    expected_max : int or float
+        Maximum pixel intensity allowed by the scene.
 
     Returns
     -------
     None
-    
+
     """
-    assert np.isclose(UscopeScene(**kwargs1).max_pixel_value, UscopeScene(**kwargs2).max_pixel_value)
+    # Use unequal dimensions to catch a width and height swap
+    scene = UscopeScene(width=5, height=4, image_type=image_type, numba_precompile=False)
+    assert scene.image is not None
+    assert scene.image.shape == (4, 5)
+    assert scene.image.dtype == expected_dtype
+    assert scene.max_pixel_value == expected_max
+    np.testing.assert_array_equal(scene.image, 0)
 
 
-@pytest.mark.parametrize(argnames=("init_sizes", "init_shifts", "shape_type", "expected_exception"), 
+@pytest.mark.parametrize(argnames=("init_sizes", "init_shifts", "shape_type", "expected_exception"),
                          argvalues=[(-0.4, (0, 0), "r", ValueError), (5, 1.0, "round", TypeError),
-                                    ((4.0, 4.0, 0.25), (0.0, 0.1), "r", ValueError), 
+                                    ((4.0, 4.0, 0.25), (0.0, 0.1), "r", ValueError),
                                     ((1.49, 1.0, 2.18), (0.0, 0.1), "el", ValueError)])
-def test_init_fluorobj(init_sizes: int | float | tuple[int | float, ...], 
-                       init_shifts: int | float | tuple[int | float, ...], 
+def test_init_fluorobj(init_sizes: int | float | tuple[int | float, ...],
+                       init_shifts: int | float | tuple[int | float, ...],
                        shape_type: str, expected_exception: Exception):
     with pytest.raises(expected_exception):
         FluorObj(typical_size=init_sizes, center_shifts=init_shifts, shape_type=shape_type)
-    
+
 
 @pytest.mark.filterwarnings("ignore::UserWarning")  # ignore any custom UserWarning, in test scenario - 'numba' not installed Warning
 def test_fluorobj_init_usage():
@@ -107,6 +117,37 @@ def test_fluorobj_init_usage():
     flobj = FluorObj(typical_size=(3.2, 4.2, -0.51*np.pi), shape_type='el'); flobj.get_shape(accelerated=True); flobj.crop_shape()
     flobj.get_casted_shape(max_pixel_value=100.0, image_type=np.float64)
     assert np.max(flobj.casted_profile) >= 100.0, f"Profile not casted properly, max value: {np.max(flobj.profile)}"
+
+
+# Skip both shape cases when Numba is unavailable (by the pytest.mark.skipif decorator)
+# pytest.param wraps the input parameter along with the id for better inspection of failed tests
+@pytest.mark.skipif(not numba_installed, reason="Numba is required for the accelerated shape comparison")
+@pytest.mark.parametrize("bead_kwargs",
+                         [pytest.param({"typical_size": 3.5, "center_shifts": (0.25, 0.3)}, id="shifted-round"),
+                          pytest.param({"typical_size": (4.2, 3.0, 0.4), "center_shifts": (0.25, 0.3), "shape_type": "ellipse"},
+                                        id="shifted-rotated-ellipse",),
+                         ],
+                        )
+def test_numba_shape_matches_numpy(bead_kwargs: dict) -> None:
+    """
+    Compare both shape implementations on the same bead geometry.
+
+    Parameters
+    ----------
+    bead_kwargs : dict
+        Arguments for constructing the same bead for each implementation.
+
+    Returns
+    -------
+    None
+
+    """
+    numpy_profile = FluorObj(**bead_kwargs).get_shape(accelerated=False)
+    numba_profile = FluorObj(**bead_kwargs).get_shape(accelerated=True)
+
+    assert numpy_profile is not None
+    assert numba_profile is not None
+    np.testing.assert_allclose(numba_profile, numpy_profile, equal_nan=False)
 
 
 def test_objects_generation():

@@ -1,53 +1,35 @@
 # -*- coding: utf-8 -*-
 """
-Test the imports from "fluoscenepy" package.
+Smoke-test the package's public imports and basic scene generation.
 
 @author: Sergei Klykov, @year: 2024, @license: MIT
 
 """
-import contextlib
-import warnings
-
-import pytest
-
-numba_installed = False
-with contextlib.suppress(ModuleNotFoundError, AttributeError, ValueError):
-    from numba import __version__
-    major, minor, patch = __version__.split(".")
-    major = int(major); minor = int(minor); patch = int(patch)
-    if major > 0 or (major == 0 and (minor > 57 or (minor == 57 and patch == 1))):
-        numba_installed = True
 
 
-# Note for further development: pytest library is capable to automatically recognize the project following 'src'
-# layout without installation in the environment, so the test below is passed even though the package not installed by pip
-# Although, the pytest should be called from the root folder of the project
-@pytest.mark.filterwarnings("ignore::UserWarning")  # ignore any custom UserWarning, in test scenario - 'numba' not installed Warning
-def test_initialization():
+def test_package_smoke() -> None:
     """
-    Test import and basic usage of already installed package.
+    Import the public API and draw a bead with a known peak intensity.
 
     Returns
     -------
-    None.
+    None
 
     """
-    try:
-        from fluoscenepy import FluorObj, UscopeScene, __version__
-        minor_ver = int(__version__.split(".")[1])
-        if minor_ver >= 1:
-            from fluoscenepy import precompile_fluoscene
-            if numba_installed:
-                precompile_fluoscene()  # call for numba precompilation
-        else:
-            from fluoscenepy import force_precompilation
-            if numba_installed:
-                force_precompilation()  # call for numba precompilation
-        # Basic package usage. Accelerated flag below will throw out UserWarning if numba isn't installed
-        fl_obj = FluorObj(typical_size=2.0, center_shifts=(-0.21, 0.32)); fl_obj.get_shape(accelerated=True)
-        scene = UscopeScene(width=14, height=12); obj_pl = scene.set_random_places(tuple([fl_obj]))
-        scene.put_objects_on(obj_pl)
+    from fluoscenepy import FluorObj, UscopeScene, __version__, precompile_fluoscene
 
-    except (ImportError, ModuleNotFoundError):
-        __warn_message = "\nPackage 'fluoscenepy' not installed, this integration test cannot be fulfilled"
-        warnings.warn(__warn_message, stacklevel=2)
+    # Check that both elements carry the expected logic (non-empty version and callable function)
+    assert __version__
+    assert callable(precompile_fluoscene)
+
+    # test of basic methods
+    scene = UscopeScene(width=14, height=12, numba_precompile=False)
+    bead = FluorObj(typical_size=2.0); peak_intensity = 120; bead.get_shape()
+    bead.get_casted_shape(max_pixel_value=peak_intensity, image_type=scene.img_type)
+    bead.set_image_sizes(scene.shape)
+    assert bead.set_coordinates((3, 4))
+    scene.put_objects_on((bead,))
+
+    assert scene.image is not None
+    assert scene.image.shape == (12, 14)
+    assert scene.image.max() == peak_intensity
