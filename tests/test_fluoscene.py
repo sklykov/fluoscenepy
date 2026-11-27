@@ -71,40 +71,29 @@ def test_scene_img_type_init(kwargs1: dict, kwargs2: dict):
     
     """
     assert np.isclose(UscopeScene(**kwargs1).max_pixel_value, UscopeScene(**kwargs2).max_pixel_value)
+
+
+@pytest.mark.parametrize(argnames=("init_sizes", "init_shifts", "shape_type", "expected_exception"), 
+                         argvalues=[(-0.4, (0, 0), "r", ValueError), (5, 1.0, "round", TypeError),
+                                    ((4.0, 4.0, 0.25), (0.0, 0.1), "r", ValueError), 
+                                    ((1.49, 1.0, 2.18), (0.0, 0.1), "el", ValueError)])
+def test_init_fluorobj(init_sizes: int | float | tuple[int | float, ...], 
+                       init_shifts: int | float | tuple[int | float, ...], 
+                       shape_type: str, expected_exception: Exception):
+    with pytest.raises(expected_exception):
+        FluorObj(typical_size=init_sizes, center_shifts=init_shifts, shape_type=shape_type)
     
 
 @pytest.mark.filterwarnings("ignore::UserWarning")  # ignore any custom UserWarning, in test scenario - 'numba' not installed Warning
-def test_fluorobj_initialization():
+def test_fluorobj_init_usage():
     """
-    Test the 'UscopeScene' class initialization cases.
+    Test the 'FluorObj' class initialization + usage of common methods.
 
     Returns
     -------
     None.
 
     """
-    # False parameters provided for initialization - tests should fail
-    try:
-        FluorObj(typical_size=-0.4)
-        raise AssertionError("\nWrong initialization (FluorObj(typical_size=-0.4)) not thrown the error")
-    except ValueError:
-        pass
-    try:
-        FluorObj(typical_size=5, center_shifts=1.0)
-        raise AssertionError("\nWrong initialization (FluorObj(typical_size=5, center_shifts=1.0) not thrown the error")
-    except TypeError:
-        pass
-    try:
-        FluorObj(typical_size=(4.0, 4.0, 0.25), center_shifts=(0.0, 0.1))
-        raise AssertionError("\nWrong initialization FluorObj(typical_size=(4.0, 4.0, 0.25), center_shifts=(0.0, 0.1) not thrown the error")
-    except ValueError:
-        pass
-    try:
-        FluorObj(typical_size=(1.49, 1.0, 2.18), center_shifts=(0.0, 0.1), shape_type='el')
-        raise AssertionError(("\nWrong initialization FluorObj(typical_size=(1.49, 1.0, 2.18), center_shifts=(0.0, 0.1), shape_type='el') "
-                       + " - not thrown the error for typical sizes out of range"))
-    except ValueError:
-        pass
     # Checking initialization logic - acceptable parameters passed
     flobj = FluorObj(typical_size=4.75); flobj.get_shape(); flobj.crop_shape()
     assert flobj.profile.shape[0] > 4 and flobj.profile.shape[1] > 4, f"Profile sizes out of the expected range (5, 5): {flobj.profile.shape}"
